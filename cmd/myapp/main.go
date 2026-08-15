@@ -47,6 +47,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	database.GetDB()
+	database.AutoMigrate()
 	app := fiber.New(fiber.Config{
 		JSONEncoder:  json.Marshal,
 		JSONDecoder:  json.Unmarshal,

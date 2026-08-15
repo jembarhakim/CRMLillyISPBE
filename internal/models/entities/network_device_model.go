@@ -24,8 +24,8 @@ type NetworkDevice struct {
 	RemotePort             *string               `json:"remote_port" gorm:"type:varchar(50)"`
 	EthPort                *string               `json:"eth_port" gorm:"type:varchar(50)"`
 	KepemilikanPerangkat   string                `json:"kepemilikan_perangkat" gorm:"type:enum('owned','leased','customer');default:'owned'"`
-	CreatedAt              time.Time             `json:"created_at" gorm:"default:current_timestamp"`
-	UpdatedAt              time.Time             `json:"updated_at" gorm:"default:current_timestamp"`
+	CreatedAt              time.Time             `json:"created_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
+	UpdatedAt              time.Time             `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	MacAddress             *string               `json:"mac_address" gorm:"type:varchar(191)"`
 	IPStatic               *string               `json:"ip_static" gorm:"type:varchar(191)"`
 	ProductID              *string               `json:"product_id" gorm:"type:varchar(191)"`

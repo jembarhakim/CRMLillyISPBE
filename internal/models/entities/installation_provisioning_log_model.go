@@ -50,8 +50,8 @@ type InstallationProvisioningLog struct {
 	ExecutionTimeMs        *int      `gorm:"column:execution_time_ms;type:int" json:"execution_time_ms,omitempty"`
 	DryRun                 bool      `gorm:"column:dry_run;type:boolean;default:false" json:"dry_run"`
 	CreatedBy              *string   `gorm:"column:created_by;type:varchar(255)" json:"created_by,omitempty"`
-	CreatedAt              time.Time `gorm:"column:createdAt;default:current_timestamp;index:idx_ipl_created_at" json:"createdAt"`
-	UpdatedAt              time.Time `gorm:"column:updatedAt;default:current_timestamp on update current_timestamp" json:"updatedAt"`
+	CreatedAt              time.Time `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3);index:idx_ipl_created_at" json:"createdAt"`
+	UpdatedAt              time.Time `gorm:"column:updatedAt;default:CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)" json:"updatedAt"`
 
 	// Relations
 	CustomerInstallation *CustomerInstallation `gorm:"foreignKey:CustomerInstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"customer_installation,omitempty"`

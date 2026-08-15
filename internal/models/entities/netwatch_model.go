@@ -15,9 +15,9 @@ type NetwatchDevice struct {
 	CustomerID *string   `json:"customer_id" gorm:"type:varchar(36)"`
 	Customer   *Customer `json:"customer,omitempty" gorm:"foreignKey:CustomerID;references:ID"`
 	Status     string    `json:"status" gorm:"type:enum('up','down');default:'up'"`
-	LastSeen   time.Time `json:"last_seen" gorm:"default:current_timestamp"`
-	CreatedAt  time.Time `json:"created_at" gorm:"default:current_timestamp"`
-	UpdatedAt  time.Time `json:"updated_at" gorm:"default:current_timestamp"`
+	LastSeen   time.Time `json:"last_seen" gorm:"default:CURRENT_TIMESTAMP(3)"`
+	CreatedAt  time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (n *NetwatchDevice) BeforeCreate(tx *gorm.DB) error {
@@ -37,10 +37,10 @@ type NetwatchEvent struct {
 	DeviceID  string         `json:"device_id" gorm:"type:varchar(36);not null"`
 	Device    NetwatchDevice `json:"device,omitempty" gorm:"foreignKey:DeviceID;references:ID"`
 	EventType string         `json:"event_type" gorm:"type:enum('up','down');not null"`
-	EventTime time.Time      `json:"event_time" gorm:"default:current_timestamp"`
+	EventTime time.Time      `json:"event_time" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	RawData   string         `json:"raw_data" gorm:"type:text"`
 	Processed bool           `json:"processed" gorm:"default:false"`
-	CreatedAt time.Time      `json:"created_at" gorm:"default:current_timestamp"`
+	CreatedAt time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (n *NetwatchEvent) BeforeCreate(tx *gorm.DB) error {
@@ -65,7 +65,7 @@ type TicketLog struct {
 	Event     *NetwatchEvent `json:"event,omitempty" gorm:"foreignKey:EventID;references:ID"`
 	CreatedBy *string        `json:"created_by" gorm:"type:varchar(36)"`
 	User      *User          `json:"user,omitempty" gorm:"foreignKey:CreatedBy;references:ID"`
-	CreatedAt time.Time      `json:"created_at" gorm:"default:current_timestamp"`
+	CreatedAt time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (t *TicketLog) BeforeCreate(tx *gorm.DB) error {
@@ -89,8 +89,8 @@ type NetwatchConfig struct {
 	Password  string    `json:"password" gorm:"type:varchar(255);not null"`
 	UseSSL    bool      `json:"use_ssl" gorm:"default:false"`
 	Active    bool      `json:"active" gorm:"default:true"`
-	CreatedAt time.Time `json:"created_at" gorm:"default:current_timestamp"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"default:current_timestamp"`
+	CreatedAt time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (n *NetwatchConfig) BeforeCreate(tx *gorm.DB) error {

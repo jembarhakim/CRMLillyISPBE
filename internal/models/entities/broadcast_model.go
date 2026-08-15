@@ -46,7 +46,7 @@ type BroadcastHistory struct {
 	TemplateKey     string      `json:"template_key" gorm:"type:varchar(50)"`
 	SentAt          time.Time   `json:"sent_at" gorm:"type:timestamp;default:current_timestamp"`
 	CreatedBy       string      `json:"created_by" gorm:"type:varchar(191);index"`
-	CreatedAt       time.Time   `json:"created_at" gorm:"column:created_at;default:current_timestamp"`
+	CreatedAt       time.Time   `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt       *time.Time  `json:"updated_at" gorm:"column:updated_at"`
 
 	// Relations

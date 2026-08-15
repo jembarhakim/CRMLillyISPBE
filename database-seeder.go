@@ -29,7 +29,7 @@ func main() {
 
 	// 2. Seed Users
 	log.Println("2. Seeding users...")
-	seedUsers(db, roles)
+	users := seedUsers(db, roles)
 
 	// 3. Seed Areas
 	log.Println("3. Seeding areas...")
@@ -45,7 +45,7 @@ func main() {
 
 	// 6. Seed Customers
 	log.Println("6. Seeding customers...")
-	customers := seedCustomers(db, companies, areas, products)
+	customers := seedCustomers(db, users, companies, areas, products)
 
 	// 7. Seed Trouble Types
 	log.Println("7. Seeding trouble types...")
@@ -221,8 +221,9 @@ func seedCompanies(db *gorm.DB) map[string]entities.Company {
 	return companyMap
 }
 
-func seedUsers(db *gorm.DB, roles map[string]entities.Role) {
+func seedUsers(db *gorm.DB, roles map[string]entities.Role) map[string]entities.User {
 	// Hash password for all users
+	userMap := make(map[string]entities.User)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal("Error hashing password:", err)
@@ -279,45 +280,57 @@ func seedUsers(db *gorm.DB, roles map[string]entities.Role) {
 				log.Printf("Error creating user %s: %v", user.Email, err)
 			} else {
 				log.Printf("Created user: %s (Password: password)", user.Email)
+				userMap[user.Email] = user
 			}
 		} else {
 			log.Printf("User %s already exists", user.Email)
+			userMap[user.Email] = existingUser
 		}
 	}
+	return userMap
 }
 
-func seedCustomers(db *gorm.DB, companies map[string]entities.Company, areas map[string]entities.Areas, products map[string]entities.Products) []entities.Customer {
+func seedCustomers(
+    db *gorm.DB,
+    users map[string]entities.User,
+    companies map[string]entities.Company,
+    areas map[string]entities.Areas,
+    products map[string]entities.Products,
+) []entities.Customer {
 	customers := []entities.Customer{
 		{
 			Name:      "PT Maju Bersama",
-			Email:     "contact@majubersama.com",
 			Phone:     "021-5550123",
 			Address:   "Jl. Sudirman No. 123, Jakarta Pusat",
 			CompanyID: companies["PT Maju Bersama"].ID,
 			AreaID:    areas["Jakarta Pusat"].ID,
 			ProductID: products["Internet 100 Mbps"].ID,
+			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
+		    ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.2088,
 			Longitude: 106.8456,
 		},
 		{
 			Name:      "CV Sukses Mandiri",
-			Email:     "info@suksesmandiri.co.id",
 			Phone:     "021-5550456",
 			Address:   "Jl. Thamrin No. 45, Jakarta Pusat",
 			CompanyID: companies["CV Sukses Mandiri"].ID,
 			AreaID:    areas["Jakarta Pusat"].ID,
 			ProductID: products["Internet 50 Mbps"].ID,
+			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
+		    ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.1865,
 			Longitude: 106.8222,
 		},
 		{
 			Name:      "UD Makmur Jaya",
-			Email:     "admin@makmurjaya.com",
 			Phone:     "021-5550789",
 			Address:   "Jl. Gatot Subroto No. 67, Jakarta Selatan",
 			CompanyID: companies["UD Makmur Jaya"].ID,
 			AreaID:    areas["Jakarta Selatan"].ID,
 			ProductID: products["Internet 25 Mbps"].ID,
+			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
+		    ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.2088,
 			Longitude: 106.8233,
 		},
@@ -326,8 +339,10 @@ func seedCustomers(db *gorm.DB, companies map[string]entities.Company, areas map
 	var createdCustomers []entities.Customer
 	for _, customer := range customers {
 		var existingCustomer entities.Customer
-		if err := db.Where("email = ?", customer.Email).First(&existingCustomer).Error; err != nil {
-			// Customer doesn't exist, create it
+
+		if err := db.Where("phone = ?", customer.Phone).
+			First(&existingCustomer).Error; err != nil {
+
 			if err := db.Create(&customer).Error; err != nil {
 				log.Printf("Error creating customer %s: %v", customer.Name, err)
 			} else {

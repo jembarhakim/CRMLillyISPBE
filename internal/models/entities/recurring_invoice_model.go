@@ -31,8 +31,8 @@ type RecurringInvoiceItem struct {
 }
 
 type RecurringInvoice struct {
-	ID                   string                    `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	CustomerID           string                    `gorm:"column:customer_id;type:varchar;not null" json:"customer_id"`
+	ID                   string                    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	CustomerID           string                    `gorm:"column:customer_id;type:varchar(191);not null" json:"customer_id"`
 	Customer             Customer                  `gorm:"foreignKey:CustomerID;references:id;constraint:OnUpdate:RESTRICT" json:"customer"`
 	Amount               int64                     `gorm:"column:amount;type:int;not null" json:"amount"`
 	InvoiceDate          time.Time                 `gorm:"column:invoice_date;type:date;not null" json:"invoice_date"`
@@ -45,9 +45,9 @@ type RecurringInvoice struct {
 	Description          *string                   `gorm:"column:description;type:text" json:"description"`
 	InvoiceItems         string                    `gorm:"column:invoice_items;type:json;not null" json:"-"` // Store as JSON string
 	InvoiceItemsData     []RecurringInvoiceItem    `gorm:"-" json:"invoice_items"`                           // Parsed items for API
-	CreatedAt            time.Time                 `gorm:"column:created_at;default:current_timestamp" json:"created_at"`
+	CreatedAt            time.Time                 `gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	UpdatedAt            time.Time                 `gorm:"column:updated_at;not null" json:"updated_at"`
-	CreatedBy            *string                   `gorm:"column:created_by;type:varchar" json:"created_by"`
+	CreatedBy            *string                   `gorm:"column:created_by;type:varchar(191)" json:"created_by"`
 	CreatedByUser        *User                     `gorm:"foreignKey:CreatedBy;references:id;constraint:OnUpdate:RESTRICT" json:"created_by_user,omitempty"`
 
 	// Related data
@@ -78,12 +78,12 @@ func (r *RecurringInvoice) AfterFind(tx *gorm.DB) error {
 }
 
 type RecurringInvoiceHistory struct {
-	ID                 string           `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	RecurringInvoiceID string           `gorm:"column:recurring_invoice_id;type:varchar;not null" json:"recurring_invoice_id"`
+	ID                 string           `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	RecurringInvoiceID string           `gorm:"column:recurring_invoice_id;type:varchar(191);not null" json:"recurring_invoice_id"`
 	RecurringInvoice   RecurringInvoice `gorm:"foreignKey:RecurringInvoiceID;references:id;constraint:OnUpdate:RESTRICT" json:"recurring_invoice,omitempty"`
-	GeneratedInvoiceID string           `gorm:"column:generated_invoice_id;type:varchar;not null" json:"generated_invoice_id"`
+	GeneratedInvoiceID string           `gorm:"column:generated_invoice_id;type:varchar(191);not null" json:"generated_invoice_id"`
 	GeneratedInvoice   Invoice          `gorm:"foreignKey:GeneratedInvoiceID;references:id;constraint:OnUpdate:RESTRICT" json:"generated_invoice,omitempty"`
-	GeneratedAt        time.Time        `gorm:"column:generated_at;default:current_timestamp" json:"generated_at"`
+	GeneratedAt        time.Time        `gorm:"column:generated_at;default:CURRENT_TIMESTAMP(3)" json:"generated_at"`
 	InvoiceDate        time.Time        `gorm:"column:invoice_date;type:date;not null" json:"invoice_date"`
 	DueDate            time.Time        `gorm:"column:due_date;type:date;not null" json:"due_date"`
 }

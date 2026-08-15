@@ -10,10 +10,10 @@ import (
 
 // CustomerInstallation model untuk instalasi customer
 type CustomerInstallation struct {
-	ID                      string     `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	CustomerID              *string    `gorm:"column:customer_id;type:varchar;index:idx_customer_installations_customer_id" json:"customer_id,omitempty"`
-	TechnicianID            *string    `gorm:"column:technician_id;type:varchar;index:idx_customer_installations_technician_id" json:"technician_id,omitempty"` // Legacy: for backward compatibility
-	Status                  string     `gorm:"column:status;type:varchar;default:'pending'" json:"status,omitempty"`
+	ID                      string     `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	CustomerID              *string    `gorm:"column:customer_id;type:varchar(191);index:idx_customer_installations_customer_id" json:"customer_id,omitempty"`
+	TechnicianID            *string    `gorm:"column:technician_id;type:varchar(191);index:idx_customer_installations_technician_id" json:"technician_id,omitempty"` // Legacy: for backward compatibility
+	Status                  string     `gorm:"column:status;type:varchar(50);default:'pending'" json:"status,omitempty"`
 	Notes                   string     `gorm:"column:notes;type:text" json:"notes,omitempty"`
 	IPAddress               *string    `gorm:"column:ip_address;type:varchar(15)" json:"ip_address,omitempty"`
 	ProvisioningStatus      *string    `gorm:"column:provisioning_status;type:enum('pending','queued','provisioned','failed','manual');default:'pending';index:idx_ci_provisioning_status" json:"provisioning_status,omitempty"`
@@ -34,13 +34,13 @@ type CustomerInstallation struct {
 
 	// Terminal installation fields
 	IsTerminal                     *string `gorm:"column:is_terminal;type:enum('yes','no');default:'no'" json:"is_terminal,omitempty"`
-	TerminalCustomerInstallationID *string `gorm:"column:terminal_customer_installation_id;type:varchar;index:idx_customer_installations_terminal_installation_id" json:"terminal_customer_installation_id,omitempty"`
+	TerminalCustomerInstallationID *string `gorm:"column:terminal_customer_installation_id;type:varchar(191);index:idx_customer_installations_terminal_installation_id" json:"terminal_customer_installation_id,omitempty"`
 
 	// Technician Photo Documentation is now handled via Images relationship
 	// Use installation.Images to access technician photos with archive_installation_id
 
-	CreatedAt time.Time `gorm:"column:createdAt;default:current_timestamp" json:"createdAt"`
-	UpdatedAt time.Time `gorm:"column:updatedAt;default:current_timestamp on update current_timestamp" json:"updatedAt"`
+	CreatedAt time.Time `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"column:updatedAt;default:CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)" json:"updatedAt"`
 
 	// Relations
 	Customer                     *Customer                      `gorm:"foreignKey:CustomerID;references:id;constraint:OnDelete:SET NULL,OnUpdate:CASCADE" json:"customer,omitempty"`

@@ -17,15 +17,15 @@ const (
 
 // RouterJob represents an asynchronous MikroTik operation tied to an invoice
 type RouterJob struct {
-	ID         string          `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	InvoiceID  string          `gorm:"column:invoice_id;type:varchar;index:idx_router_jobs_invoice" json:"invoice_id"`
+	ID         string          `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	InvoiceID  string          `gorm:"column:invoice_id;type:varchar(191);index:idx_router_jobs_invoice" json:"invoice_id"`
 	Action     string          `gorm:"column:action;type:varchar(64);not null" json:"action"`
 	UniqueKey  string          `gorm:"column:unique_key;type:varchar(128);uniqueIndex" json:"unique_key"`
 	Status     RouterJobStatus `gorm:"column:status;type:enum('pending','success','error');default:'pending'" json:"status"`
 	RetryCount int             `gorm:"column:retry_count;type:int;default:0" json:"retry_count"`
 	NextRunAt  time.Time       `gorm:"column:next_run_at;type:datetime;index:idx_router_jobs_nextrun" json:"next_run_at"`
 	LastError  *string         `gorm:"column:last_error;type:text" json:"last_error,omitempty"`
-	CreatedAt  time.Time       `gorm:"column:created_at;default:current_timestamp" json:"created_at"`
+	CreatedAt  time.Time       `gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	UpdatedAt  time.Time       `gorm:"column:updated_at;not null" json:"updated_at"`
 }
 

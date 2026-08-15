@@ -70,7 +70,9 @@ func DatabaseMysql() *gorm.DB {
 		log.Println("Using individual variables - Host:", dbHost, "Port:", dbPort, "Database:", dbName)
 		log.Println("Connecting to database:", dbHost+":"+dbPort)
 	}
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+    DisableForeignKeyConstraintWhenMigrating: true,
+	})
 
 	if err != nil {
 		panic("failed to connect database")

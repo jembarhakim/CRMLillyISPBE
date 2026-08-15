@@ -16,7 +16,7 @@ type DetailBarangMasuk struct {
 	QtyMasuk     int       `json:"qty_masuk" gorm:"column:QtyMasuk;type:int"`
 	HargaSatuan  int       `json:"harga_satuan" gorm:"column:HargaSatuan;type:int;not null"`
 	SubTotal     int       `json:"sub_total" gorm:"column:SubTotal;type:int;not null"`
-	CreatedAt    time.Time `json:"created_at" gorm:"column:created_at;default:current_timestamp"`
+	CreatedAt    time.Time `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (d *DetailBarangMasuk) TableName() string {
@@ -29,7 +29,7 @@ type BarangMasuk struct {
 	Date      time.Time           `json:"date" gorm:"column:date;type:date"`
 	Notes     *string             `json:"notes" gorm:"column:notes;type:text"`
 	CreatedBy string              `json:"created_by" gorm:"column:created_by;type:varchar(191);not null"`
-	CreatedAt time.Time           `json:"created_at" gorm:"column:created_at;default:current_timestamp"`
+	CreatedAt time.Time           `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)"`
 	Details   []DetailBarangMasuk `json:"details,omitempty" gorm:"foreignKey:IdMasuk;references:IdMasuk"`
 }
 
@@ -57,7 +57,7 @@ type TicketAssetTransaction struct {
 	TransactionType string     `json:"transaction_type" gorm:"column:transaction_type;type:enum('out','in');not null"`
 	Notes           *string    `json:"notes" gorm:"column:notes;type:text"`
 	CreatedBy       string     `json:"created_by" gorm:"column:created_by;type:varchar(191);not null"`
-	CreatedAt       time.Time  `json:"created_at" gorm:"column:created_at;default:current_timestamp"`
+	CreatedAt       time.Time  `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (tat *TicketAssetTransaction) TableName() string {

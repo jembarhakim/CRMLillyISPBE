@@ -145,8 +145,8 @@ type Accounts struct {
 	ID        string    `json:"id" gorm:"column:id;primaryKey"`
 	Name      string    `json:"name" gorm:"column:name"`
 	Saldo     int64     `json:"saldo" gorm:"column:saldo;default:0"`
-	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
-	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt;"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;type:datetime(3);default:CURRENT_TIMESTAMP(3)"`
+	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt;type:datetime(3);default:CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)"`
 }
 
 func (c *Accounts) TableName() string {
@@ -172,9 +172,9 @@ type Asset struct {
 	Date         string             `json:"date" validate:"required"`
 	Price        float64            `json:"price" validate:"required"`
 	Description  string             `json:"description"`
-	CreatedAt    time.Time          `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
+	CreatedAt    time.Time          `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt    time.Time          `json:"updatedAt" gorm:"column:updatedAt;"`
-	ReportAssets *ReportAssets      `json:"report_assets" gorm:"foreignKey:ID"`
+	ReportAssets *ReportAssets `json:"report_assets" gorm:"foreignKey:ID;constraint:false"`
 	AssetItems   []AssetItem        `json:"asset_items,omitempty" gorm:"foreignKey:AssetID;references:ID"`
 	Transactions []AssetTransaction `json:"transactions,omitempty" gorm:"foreignKey:AssetID;references:ID"`
 }
@@ -202,8 +202,8 @@ type AssetItem struct {
 	CompanyID    *string   `json:"company_id" gorm:"type:varchar(191)"`
 	Company      *Company  `json:"company,omitempty" gorm:"foreignKey:CompanyID;references:ID"`
 	Site         string    `json:"site" gorm:"type:varchar(191)"`
-	CreatedAt    time.Time `json:"created_at" gorm:"column:created_at;default:current_timestamp"`
-	UpdatedAt    time.Time `json:"updated_at" gorm:"column:updated_at;default:current_timestamp"`
+	CreatedAt    time.Time `json:"created_at" gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)"`
+	UpdatedAt    time.Time `json:"updated_at" gorm:"column:updated_at;default:CURRENT_TIMESTAMP(3)"`
 }
 
 func (ai *AssetItem) TableName() string {
@@ -228,7 +228,7 @@ type Company struct {
 	Description string     `json:"description"`
 	Npwp        string     `json:"npwp"`
 	Address     string     `json:"address"`
-	CreatedAt   time.Time  `json:"createdAt" gorm:"column:createdAt; default:current_timestamp"`
+	CreatedAt   time.Time  `json:"createdAt" gorm:"column:createdAt; default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt   time.Time  `json:"updatedAt"  gorm:"column:updatedAt" `
 	Customers   []Customer `json:"customers" gorm:"foreignKey:CompanyID;references:ID"`
 }
@@ -248,7 +248,7 @@ func (c *Company) BeforeCreate(tx *gorm.DB) error {
 type Customer struct {
 	ID                    string     `json:"id" gorm:"primaryKey"`
 	Address               string     `gorm:"column:address" json:"address"`
-	AreaID                string     `gorm:"column:area_id" json:"area_id"`
+	AreaID                string `gorm:"column:area_id;type:varchar(191);index:idx_customer_area_id,length:191" json:"area_id"`
 	Area                  *Areas     `gorm:"foreignKey:AreaID" json:"area"`
 	Latitude              float64    `gorm:"column:latitude" json:"latitude"`
 	Longitude             float64    `gorm:"column:longitude" json:"longitude"`
@@ -261,10 +261,12 @@ type Customer struct {
 	UpdatedAt             time.Time  `gorm:"column:updatedAt;autoUpdateTime" json:"updated_at"`
 	DeletedAt             *time.Time `gorm:"column:deleted_at" json:"deleted_at,omitempty"`
 	InstallationDate      time.Time  `gorm:"column:installation_date;type:date" json:"installation_date"`
-	SalesRepresentativeID *string    `gorm:"column:sales_representative_id" json:"sales_representative_id"`
+	SalesRepresentativeID string `gorm:"column:sales_representative_id;type:varchar(191);index:idx_customer_sales_rep_id,length:191" json:"sales_representative_id"`
 	SalesRepresentative   *User      `gorm:"foreignKey:SalesRepresentativeID" json:"sales_representative"`
-	CompanyID             *string    `gorm:"column:company_id" json:"company_id"`
+	CompanyID             string `gorm:"column:company_id;type:varchar(191);index:idx_customer_company_id,length:191" json:"company_id"`
 	Company               *Company   `gorm:"foreignKey:CompanyID" json:"company"`
+	ProductID             string     `gorm:"column:product_id;type:varchar(191);index:idx_customer_product_id,length:191" json:"product_id"`
+	Product               *Products  `gorm:"foreignKey:ProductID" json:"product"`
 	IsInternet            string     `gorm:"column:is_internet;default:yes" json:"is_internet"`
 	IsCollaborator        string     `gorm:"column:is_collaborator;default:no" json:"is_collaborator"`
 
@@ -287,7 +289,7 @@ func (c *Customer) BeforeCreate(tx *gorm.DB) error {
 type Device struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt" gorm:"default:current_timestamp"`
+	CreatedAt time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -298,7 +300,7 @@ type Areas struct {
 	NameSubdistrict string     `json:"name_subdistrict"`
 	NameVillage     string     `json:"name_village"`
 	CodeName        string     `json:"code_name" gorm:"column:code_name"`
-	CreatedAt       time.Time  `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
+	CreatedAt       time.Time  `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt       time.Time  `json:"updatedAt" gorm:"column:updatedAt;"`
 	Customers       []Customer `json:"customer" gorm:"foreignKey:area_id"`
 }
@@ -318,7 +320,7 @@ type Log struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
 	UserID    string    `json:"user_id" gorm:"index:user_id"`
 	Action    string    `json:"action"`
-	CreatedAt time.Time `json:"createdAt" gorm:"default:current_timestamp"`
+	CreatedAt time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	User      User      `json:"user" gorm:"foreignKey:UserID;constraint:OnUpdate:RESTRICT"`
 }
@@ -331,7 +333,7 @@ type Products struct {
 	Description       string    `json:"description"`                                           // Used as comment for MikroTik provisioning
 	DownloadSpeedMbps *int      `json:"download_speed_mbps" gorm:"column:download_speed_mbps"` // Nullable INT field
 	UploadSpeedMbps   *int      `json:"upload_speed_mbps" gorm:"column:upload_speed_mbps"`     // Nullable INT field
-	CreatedAt         time.Time `json:"createdAt" gorm:"default:current_timestamp; column:createdAt"`
+	CreatedAt         time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3); column:createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt" gorm:"column:updatedAt"`
 }
 
@@ -350,15 +352,15 @@ type ReportAssets struct {
 	ID          string    `json:"id" gorm:"primaryKey;index:report_assets_ibfk_1"`
 	Description string    `json:"description"`
 	Quantity    int64     `json:"quantity"` // BigInt mapped to int64
-	CreatedAt   time.Time `json:"createdAt" gorm:"default:current_timestamp"`
+	CreatedAt   time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt   time.Time `json:"updatedAt"`
-	Assets      []Asset   `json:"assets" gorm:"foreignKey:ID;constraint:OnUpdate:RESTRICT"`
+	Assets []Asset `json:"assets" gorm:"foreignKey:ID;constraint:false"`
 }
 
 // ReportCash model
 type ReportCash struct {
 	ID          string    `json:"id" gorm:"primaryKey"`
-	CreatedAt   time.Time `json:"createdAt" gorm:"default:current_timestamp"`
+	CreatedAt   time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 	Credit      int64     `json:"credit"` // BigInt mapped to int64
 	Debit       int64     `json:"debit"`  // BigInt mapped to int64
@@ -389,17 +391,17 @@ const (
 type TransactionsType string
 
 type Transaction struct {
-	ID          string                `json:"id" gorm:"column:id;primaryKey;type:varchar"`
-	AccountID   string                `json:"account_id" gorm:"column:account_id;index:transactions_account_id_fkey;type:varchar"`
-	InvoiceID   string                `json:"invoice_id" gorm:"column:invoice_id;index:transactions_invoice_id_fkey;type:varchar"`
-	TypeCash    TransactionsTypeCash  `json:"type_cash" gorm:"column:type_cash;type:varchar"`
-	TypeInOut   TransactionsTypeInOut `json:"type_in_out" gorm:"column:type_in_out;type:varchar"`
+	ID          string                `json:"id" gorm:"column:id;primaryKey;type:varchar(191)"`
+	AccountID   string                `json:"account_id" gorm:"column:account_id;index:transactions_account_id_fkey;type:varchar(191)"`
+	InvoiceID   string                `json:"invoice_id" gorm:"column:invoice_id;index:transactions_invoice_id_fkey;type:varchar(191)"`
+	TypeCash    TransactionsTypeCash  `json:"type_cash" gorm:"column:type_cash;type:varchar(191)"`
+	TypeInOut   TransactionsTypeInOut `json:"type_in_out" gorm:"column:type_in_out;type:varchar(191)"`
 	Date        string                `json:"date" gorm:"column:date;type:datetime"`
-	Description string                `json:"description" gorm:"column:description;type:varchar"`
+	Description string                `json:"description" gorm:"column:description;type:varchar(191)"`
 	Amount      int64                 `json:"amount" gorm:"column:amount;type:bigint"`
-	Category    string                `json:"category" gorm:"column:category;type:varchar"`
-	Method      string                `json:"method" gorm:"column:method;type:varchar"`
-	CreatedAt   time.Time             `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
+	Category    string                `json:"category" gorm:"column:category;type:varchar(191)"`
+	Method      string                `json:"method" gorm:"column:method;type:varchar(191)"`
+	CreatedAt   time.Time             `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt   time.Time             `json:"updatedAt" gorm:"column:updatedAt;type:datetime"`
 	Account     Accounts              `json:"account" gorm:"foreignKey:AccountID;constraint:OnUpdate:RESTRICT"`
 }
@@ -424,7 +426,7 @@ type Transfers struct {
 	Description   string    `json:"description"`
 	Amount        int64     `json:"amount"` // BigInt mapped to int64
 	Tags          string    `json:"tags"`
-	CreatedAt     time.Time `json:"createdAt" gorm:"default:current_timestamp"`
+	CreatedAt     time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 	FromAccount   Accounts  `json:"accounts_transfers_from_account_idToaccounts" gorm:"foreignKey:FromAccountID;constraint:OnUpdate:RESTRICT"`
 	ToAccount     Accounts  `json:"accounts_transfers_to_account_idToaccounts" gorm:"foreignKey:ToAccountID;constraint:OnUpdate:RESTRICT"`
@@ -436,11 +438,11 @@ type User struct {
 	Email     string    `json:"email" gorm:"unique"`
 	Name      string    `json:"name" gorm:"default:null"`
 	Password  string    `json:"password"`
-	RoleId    string    `gorm:"column:role_id"`
+	RoleId    string    `gorm:"column:role_id;type:varchar(191);index:idx_users_role_id,length:191"`
 	Role      Role      `gorm:"foreignKey:RoleId"`
 	Token     string    `json:"token" gorm:"default:null"`
 	Phone     string    `json:"phone"`
-	CreatedAt time.Time `json:"createdAt" gorm:"default:current_timestamp; column:createdAt"`
+	CreatedAt time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3); column:createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt"`
 	Log       []Log     `json:"log" gorm:"foreignKey:UserID"`
 }
@@ -459,7 +461,7 @@ type Role struct {
 	ID              string           `json:"id" gorm:"primaryKey"`
 	Name            string           `json:"name" gorm:"default:null"`
 	RolePermissions []RolePermission `json:"role_permissions" gorm:"foreignKey:RoleID"`
-	CreatedAt       time.Time        `json:"createdAt" gorm:"default:current_timestamp; column:createdAt"`
+	CreatedAt       time.Time        `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3); column:createdAt"`
 	UpdatedAt       time.Time        `json:"updatedAt" gorm:"column:updatedAt"`
 }
 
@@ -474,11 +476,11 @@ func (r *Role) BeforeCreate(tx *gorm.DB) error {
 }
 
 type Image struct {
-	ID                    string     `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	File                  string     `gorm:"column:file;type:varchar;not null" json:"file"`
-	FullPath              string     `gorm:"column:full_path;type:varchar;not null" json:"full_path"`
-	ArchiveInstallationId string     `gorm:"column:archive_installation_id;type:varchar;not null" json:"archive_installation_id"`
-	CreatedAt             time.Time  `gorm:"column:createdAt;not null;default:now()" json:"createdAt"`
+	ID                    string     `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	File                  string     `gorm:"column:file;type:varchar(191);not null" json:"file"`
+	FullPath              string     `gorm:"column:full_path;type:varchar(191);not null" json:"full_path"`
+	ArchiveInstallationId string     `gorm:"column:archive_installation_id;type:varchar(191);not null" json:"archive_installation_id"`
+	CreatedAt             time.Time  `gorm:"column:createdAt;type:datetime(3);not null;default:CURRENT_TIMESTAMP(3)" json:"createdAt"`
 	UpdatedAt             *time.Time `gorm:"column:updatedAt;default:null" json:"updatedAt"`
 }
 
@@ -495,17 +497,17 @@ func (u *Image) BeforeCreate(tx *gorm.DB) error {
 
 // AssetTransaction model untuk tracking aset keluar/masuk
 type AssetTransaction struct {
-	ID                     string                `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	CustomerInstallationID string                `gorm:"column:customer_installation_id;type:varchar;index:idx_asset_transactions_customer_installation_id" json:"customer_installation_id"`
-	AssetItemID            *string               `gorm:"column:asset_item_id;type:varchar;index:idx_asset_transactions_asset_item_id" json:"asset_item_id,omitempty"`
-	AssetID                string                `gorm:"column:asset_id;type:varchar;index:idx_asset_transactions_asset_id" json:"asset_id"`
+	ID                     string                `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	CustomerInstallationID string                `gorm:"column:customer_installation_id;type:varchar(191);index:idx_asset_transactions_customer_installation_id" json:"customer_installation_id"`
+	AssetItemID            *string               `gorm:"column:asset_item_id;type:varchar(191);index:idx_asset_transactions_asset_item_id" json:"asset_item_id,omitempty"`
+	AssetID                string                `gorm:"column:asset_id;type:varchar(191);index:idx_asset_transactions_asset_id" json:"asset_id"`
 	TransactionType        string                `gorm:"column:transaction_type;type:enum('out','in')" json:"transaction_type"`
 	Quantity               int                   `gorm:"column:quantity;type:int;default:1" json:"quantity"`
 	Notes                  *string               `gorm:"column:notes;type:text" json:"notes,omitempty"`
-	TransactionDate        time.Time             `gorm:"column:transaction_date;type:datetime(3);default:current_timestamp" json:"transaction_date"`
-	CreatedBy              string                `gorm:"column:created_by;type:varchar;index:idx_asset_transactions_created_by" json:"created_by"`
-	CreatedAt              time.Time             `gorm:"column:createdAt;default:current_timestamp" json:"createdAt"`
-	UpdatedAt              time.Time             `gorm:"column:updatedAt;default:current_timestamp on update current_timestamp" json:"updatedAt"`
+	TransactionDate        time.Time             `gorm:"column:transaction_date;type:datetime(3);default:CURRENT_TIMESTAMP(3)" json:"transaction_date"`
+	CreatedBy              string                `gorm:"column:created_by;type:varchar(191);index:idx_asset_transactions_created_by" json:"created_by"`
+	CreatedAt              time.Time             `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)" json:"createdAt"`
+	UpdatedAt              time.Time             `gorm:"column:updatedAt;default:CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)" json:"updatedAt"`
 	CustomerInstallation   *CustomerInstallation `gorm:"foreignKey:CustomerInstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"customer_installation,omitempty"`
 	AssetItem              *AssetItem            `gorm:"foreignKey:AssetItemID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"asset_item,omitempty"`
 	Asset                  *Asset                `gorm:"foreignKey:AssetID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"asset,omitempty"`
@@ -534,17 +536,17 @@ const (
 )
 
 type Invoice struct {
-	ID            string                  `gorm:"column:id;type:varchar;primaryKey" json:"id"`
+	ID            string                  `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
 	Amount        int64                   `gorm:"column:amount;type:int;not null" json:"amount"`
-	CustomerID    string                  `gorm:"column:customer_id;type:varchar;not null" json:"customer_id"`
+	CustomerID    string                  `gorm:"column:customer_id;type:varchar(191);not null" json:"customer_id"`
 	Customer      Customer                `gorm:"foreignKey:CustomerID;references:id;constraint:OnUpdate:RESTRICT" json:"customer"`
-	Link          string                  `gorm:"column:link;type:varchar;not null" json:"link"`
-	Status        InvoiceStatus           `gorm:"column:status;type:varchar;not null" json:"status"`
+	Link          string                  `gorm:"column:link;type:varchar(191);not null" json:"link"`
+	Status        InvoiceStatus           `gorm:"column:status;type:varchar(191);not null" json:"status"`
 	InvoiceDate   *time.Time              `gorm:"column:invoice_date;type:date" json:"invoice_date"`
 	DueDate       *time.Time              `gorm:"column:due_date;type:date" json:"due_date"`
 	PdfViewed     bool                    `gorm:"column:pdf_viewed;type:boolean;default:false" json:"pdf_viewed"`
 	PdfViewedAt   NullableTimeFromVarchar `gorm:"column:pdf_viewed_at;type:varchar(50)" json:"pdf_viewed_at"`
-	CreatedAt     time.Time               `gorm:"column:createdAt;default:current_timestamp" json:"created_at"`
+	CreatedAt     time.Time               `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	UpdatedAt     time.Time               `gorm:"column:updatedAt;not null" json:"updated_at"`
 	InvoiceItems  []InvoiceItems          `gorm:"foreignKey:InvoiceID;constraint:OnUpdate:RESTRICT" json:"invoice_items"`
 	Transaction   Transaction             `gorm:"foreignKey:invoice_id;constraint:OnUpdate:RESTRICT" json:"transaction"`
@@ -553,10 +555,10 @@ type Invoice struct {
 
 // InvoicePendingReason stores customer's reason when invoice is pending
 type InvoicePendingReason struct {
-	ID        string    `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	InvoiceID string    `gorm:"column:invoice_id;type:varchar;not null" json:"invoice_id"`
+	ID        string    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	InvoiceID string    `gorm:"column:invoice_id;type:varchar(191);not null" json:"invoice_id"`
 	Reason    string    `gorm:"column:reason;type:text;not null" json:"reason"`
-	CreatedAt time.Time `gorm:"column:created_at;default:current_timestamp" json:"created_at"`
+	CreatedAt time.Time `gorm:"column:created_at;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null" json:"updated_at"`
 }
 
@@ -575,14 +577,14 @@ func (u *Invoice) BeforeCreate(tx *gorm.DB) error {
 }
 
 type InvoiceItems struct {
-	ID        string    `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	Name      string    `gorm:"column:name;type:varchar;not null" json:"name"`
+	ID        string    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	Name      string    `gorm:"column:name;type:varchar(191);not null" json:"name"`
 	Qty       int64     `gorm:"column:qty;type:int;not null" json:"qty"`
 	Price     int64     `gorm:"column:price;type:int;not null" json:"price"`
 	Total     int64     `gorm:"column:total;type:int;not null" json:"total"`
-	InvoiceID string    `gorm:"column:invoices_id;type:varchar;not null" json:"invoice_id"`
+	InvoiceID string    `gorm:"column:invoices_id;type:varchar(191);not null" json:"invoice_id"`
 	Invoice   Invoice   `gorm:"foreignKey:InvoiceID;references:id" json:"invoice"`
-	CreatedAt time.Time `gorm:"column:createdAt;default:current_timestamp" json:"created_at"`
+	CreatedAt time.Time `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updatedAt;not null" json:"updated_at"`
 }
 
@@ -594,7 +596,7 @@ func (InvoiceItems) TableName() string {
 type Feature struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name" gorm:"column:name"`
-	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt"`
 }
 
@@ -612,10 +614,10 @@ func (f *Feature) BeforeCreate(tx *gorm.DB) error {
 // RolePermission model
 type RolePermission struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
-	RoleID    string    `json:"role_id" gorm:"column:role_id"`
-	FeatureID string    `json:"feature_id" gorm:"column:feature_id"`
+	RoleID string `json:"role_id" gorm:"column:role_id;type:varchar(191);index:idx_role_permissions_role_id,length:191"`
+	FeatureID string    `json:"feature_id" gorm:"column:feature_id;type:varchar(191)"`
 	CanAccess int       `json:"can_access" gorm:"column:can_access"`
-	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:current_timestamp"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt"`
 }
 
@@ -632,13 +634,13 @@ func (rp *RolePermission) BeforeCreate(tx *gorm.DB) error {
 
 // InstallationHistory model for tracking deleted installation reports
 type InstallationHistory struct {
-	ID                string                `gorm:"column:id;type:varchar;primaryKey" json:"id"`
-	InstallationID    string                `gorm:"column:installation_id;type:varchar;not null;index:idx_installation_history_installation_id" json:"installation_id"`
-	OldIP             *string               `gorm:"column:old_ip;type:varchar;default:null" json:"old_ip,omitempty"`
-	OldMac            *string               `gorm:"column:old_mac;type:varchar;default:null" json:"old_mac,omitempty"`
+	ID                string                `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	InstallationID    string                `gorm:"column:installation_id;type:varchar(191);not null;index:idx_installation_history_installation_id" json:"installation_id"`
+	OldIP             *string               `gorm:"column:old_ip;type:varchar(191);default:null" json:"old_ip,omitempty"`
+	OldMac            *string               `gorm:"column:old_mac;type:varchar(191);default:null" json:"old_mac,omitempty"`
 	ChangeReason      string                `gorm:"column:change_reason;type:enum('router_broken','upgrade','terminated');default:'terminated'" json:"change_reason"`
 	TicketID          uint                  `gorm:"column:ticket_id;not null" json:"ticket_id"`
-	CreatedAt         time.Time             `gorm:"column:created_at;not null;default:current_timestamp" json:"created_at"`
+	CreatedAt         time.Time             `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
 	Installation      *CustomerInstallation `gorm:"foreignKey:InstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"installation,omitempty"`
 	TroubleTicket     *TroubleTicket        `gorm:"foreignKey:TicketID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"trouble_ticket,omitempty"`
 }

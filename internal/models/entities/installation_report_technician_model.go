@@ -16,8 +16,8 @@ type InstallationReportTechnician struct {
 	Role                   string    `gorm:"column:role;type:enum('senior','junior','helper');not null;default:'junior';index:idx_irt_role" json:"role"`
 	IsPrimary              bool      `gorm:"column:is_primary;type:boolean;default:false;index:idx_irt_is_primary" json:"is_primary"`
 	Notes                  string    `gorm:"column:notes;type:text" json:"notes,omitempty"`
-	CreatedAt              time.Time `gorm:"column:createdAt;default:current_timestamp" json:"createdAt"`
-	UpdatedAt              time.Time `gorm:"column:updatedAt;default:current_timestamp on update current_timestamp" json:"updatedAt"`
+	CreatedAt              time.Time `gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)" json:"createdAt"`
+	UpdatedAt              time.Time `gorm:"column:updatedAt;default:CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)" json:"updatedAt"`
 
 	// Relations
 	CustomerInstallation *CustomerInstallation `gorm:"foreignKey:CustomerInstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"customer_installation,omitempty"`
