@@ -13,6 +13,7 @@ var roleMapping = map[string]string{
 	"CUSTOMER SERVICE": "CUSTOMER_SERVICE",
 	"CUSTOMER_SERVICE": "CUSTOMER_SERVICE",
 	"SUPERADMIN":       "SUPERADMIN", // SUPERADMIN is the only admin role
+	"ADMIN":            "SUPERADMIN",
 	"NOC":              "NOC",
 	"TECHNICIAN":       "TECHNICIAN",
 	"FINANCE":          "FINANCE",

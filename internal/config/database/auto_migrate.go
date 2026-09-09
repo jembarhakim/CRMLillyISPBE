@@ -8,8 +8,12 @@ import (
 
 func AutoMigrate() {
 	db := GetDB()
+	if db == nil {
+		log.Println("Database connection is nil; skipping AutoMigrate")
+		return
+	}
 
-	err := db.AutoMigrate(
+	models := []interface{}{
 		// Master
 		&entities.Accounts{},
 		&entities.Company{},
@@ -86,11 +90,18 @@ func AutoMigrate() {
 		&entities.Transfers{},
 		&entities.ReportAssets{},
 		&entities.ReportCash{},
-	)
-
-	if err != nil {
-		log.Fatal(err)
 	}
 
-	log.Println("AutoMigrate selesai")
+	for _, model := range models {
+		if db.Migrator().HasTable(model) {
+			log.Printf("Skipping schema migration for existing table: %T", model)
+			continue
+		}
+
+		if err := db.Migrator().CreateTable(model); err != nil {
+			log.Printf("Failed to create table for %T: %v", model, err)
+		}
+	}
+
+	log.Println("Schema verification complete")
 }

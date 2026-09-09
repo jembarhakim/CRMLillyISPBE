@@ -171,7 +171,7 @@ func (r AdminDashboardRepositoryStruct) CardReportCash() (map[string]interface{}
 	var Transactions []ReportCash
 	if err := r.db.Model(&entities.Transaction{}).
 		Group("DATE(date)").
-		Select("DATE(date) as date, SUM(amount) as amount").
+		Select("DATE(date) as date, COALESCE(SUM(amount), 0) as amount").
 		Order("date DESC").
 		Where("type_in_out = ? AND DATE(date) >= ?", entities.TransactionsTypeInOutIn, startDay.Format("2006-01-02")).
 		Find(&Transactions).Error; err != nil {
@@ -204,7 +204,7 @@ func (r AdminDashboardRepositoryStruct) GetTotalIncome() (int64, error) {
 	var totalIncome int64
 	if err := r.db.Model(&entities.Transaction{}).
 		Where("type_in_out = ?", entities.TransactionsTypeInOutIn).
-		Select("SUM(amount)").
+		Select("COALESCE(SUM(amount), 0)").
 		Scan(&totalIncome).Error; err != nil {
 		return 0, err
 	}
@@ -216,7 +216,7 @@ func (r AdminDashboardRepositoryStruct) GetTotalExpenses() (int64, error) {
 	var totalIncome int64
 	if err := r.db.Model(&entities.Transaction{}).
 		Where("type_in_out = ?", entities.TransactionsTypeInOutOut).
-		Select("SUM(amount)").
+		Select("COALESCE(SUM(amount), 0)").
 		Scan(&totalIncome).Error; err != nil {
 		return 0, err
 	}
@@ -495,7 +495,7 @@ func (r AdminDashboardRepositoryStruct) GetRevenueChart(start *time.Time, end *t
 
 	var results []DailyCount
 	query := r.db.Model(&entities.Transaction{}).
-		Select("DATE(date) as date, SUM(amount) as count").
+		Select("DATE(date) as date, COALESCE(SUM(amount), 0) as count").
 		Where("type_in_out = ?", entities.TransactionsTypeInOutIn)
 	if start != nil && end != nil {
 		query = query.Where("date BETWEEN ? AND ?", start, end)

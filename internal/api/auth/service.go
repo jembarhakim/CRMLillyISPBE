@@ -82,6 +82,9 @@ func (r *AuthServiceStruct) LoginCustomerAuthService(LoginRequest LoginRequest) 
 	}
 	loginAuthDTO := dto.ModelToCustomerLoginAuth(token, customerDTO)
 
+	// Save token to database for verification
+	r.repository.UpdateTokenUserByID(user.ID, token)
+
 	return loginAuthDTO, nil
 }
 

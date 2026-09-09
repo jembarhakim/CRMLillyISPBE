@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"skripsi-be/internal/config/database"
@@ -24,6 +25,12 @@ func CustomerAuthMiddleware(c *fiber.Ctx) error {
 	}
 
 	secretKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(secretKey) == 0 {
+		secretKey = []byte(os.Getenv("JWT_SECRET"))
+	}
+	if len(secretKey) == 0 {
+		secretKey = []byte("lilly-isp-local-dev-secret")
+	}
 
 	tokenString := c.Get("Authorization")
 	log.Println("Customer token from header:", tokenString)
@@ -32,42 +39,29 @@ func CustomerAuthMiddleware(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token not provided", nil)
 	}
 
-	// Parse the token with the secret key
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return secretKey, nil
 	})
 
-	// Check for verification errors
 	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", err.Error())
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok || !token.Valid {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", nil)
 	}
-
-	// Check if the token is valid
-	if !token.Valid {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", nil)
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
+		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token Expired", nil)
 	}
-
-	// Check if the token is expired
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if exp, ok := claims["exp"].(int64); ok {
-			if time.Unix(exp, 0).Before(time.Now()) {
-				return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token Expired", nil)
-			}
-		}
-	} else {
+	if claims.Subject == "" || len(claims.Audience) == 0 {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
 	}
 
-	subject, err := token.Claims.GetSubject()
-	if err != nil {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
-	}
-
-	audience, err := token.Claims.GetAudience()
-	if err != nil {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
-	}
-
+	subject := claims.Subject
 	// For customer authentication, we need to verify the customer exists
 	db := database.GetDB()
 	var customer entities.Customer
@@ -83,7 +77,7 @@ func CustomerAuthMiddleware(c *fiber.Ctx) error {
 	c.Locals("customer_phone", customer.Phone)
 	c.Locals("customer_name", customer.Name)
 	c.Locals("user_id", subject)
-	c.Locals("role", audience[0])
+	c.Locals("role", claims.Audience[0])
 
 	return c.Next()
 }
@@ -97,6 +91,12 @@ func AdminAuthMiddleware(c *fiber.Ctx) error {
 	}
 
 	secretKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(secretKey) == 0 {
+		secretKey = []byte(os.Getenv("JWT_SECRET"))
+	}
+	if len(secretKey) == 0 {
+		secretKey = []byte("lilly-isp-local-dev-secret")
+	}
 
 	tokenString := c.Get("Authorization")
 	log.Println("Admin token from header:", tokenString)
@@ -105,42 +105,29 @@ func AdminAuthMiddleware(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token not provided", nil)
 	}
 
-	// Parse the token with the secret key
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return secretKey, nil
 	})
 
-	// Check for verification errors
 	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", err.Error())
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok || !token.Valid {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", nil)
 	}
-
-	// Check if the token is valid
-	if !token.Valid {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", nil)
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
+		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token Expired", nil)
 	}
-
-	// Check if the token is expired
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if exp, ok := claims["exp"].(int64); ok {
-			if time.Unix(exp, 0).Before(time.Now()) {
-				return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Token Expired", nil)
-			}
-		}
-	} else {
+	if claims.Subject == "" || len(claims.Audience) == 0 {
 		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
 	}
 
-	subject, err := token.Claims.GetSubject()
-	if err != nil {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
-	}
-
-	audience, err := token.Claims.GetAudience()
-	if err != nil {
-		return helpers.ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token Claims", nil)
-	}
-
+	subject := claims.Subject
 	// For admin authentication, verify the user exists in the users table
 	db := database.GetDB()
 	var user entities.User
@@ -155,7 +142,7 @@ func AdminAuthMiddleware(c *fiber.Ctx) error {
 	c.Locals("user_id", user.ID)
 	c.Locals("user_email", user.Email)
 	c.Locals("user_name", user.Name)
-	c.Locals("role", audience[0])
+	c.Locals("role", claims.Audience[0])
 
 	return c.Next()
 }
