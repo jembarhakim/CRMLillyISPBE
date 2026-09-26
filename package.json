@@ -8,18 +8,18 @@
     "dev": "node index.js"
   },
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "qrcode-terminal": "^0.12.0",
-    "cors": "^2.8.5"
+    "whatsapp-web.js": "^1.23.0"
   },
-  "keywords": ["whatsapp", "automation"],
+  "keywords": [
+    "whatsapp",
+    "automation"
+  ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@nuxt/icon": "^2.5.1"
+  }
 }
-
-
-
-
-
-
