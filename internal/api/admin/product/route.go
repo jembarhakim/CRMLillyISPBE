@@ -22,3 +22,13 @@ func AdminProductRoute(app fiber.Router) {
 	app.Delete("/:id", handler.DeleteAdminProductHandler)
 
 }
+
+func PublicProductRoute(app fiber.Router) {
+	db := database.GetDB()
+	repository := NewAdminProductRepository(db)
+	service := NewAdminProductServiceStruct(repository)
+	handler := NewAdminProductHandlerStruct(service)
+
+	app.Get("", handler.GetAllAdminProductHandler)
+	app.Get("/:id", handler.GetByIdAdminProductHandler)
+}

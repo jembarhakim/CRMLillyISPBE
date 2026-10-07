@@ -21,6 +21,7 @@ func AutoMigrate() {
 		&entities.Feature{},
 		&entities.RolePermission{},
 		&entities.User{},
+		&entities.News{},
 
 		// Customer
 		&entities.Customer{},
