@@ -72,6 +72,7 @@ func AutoMigrate() {
 		&entities.NetwatchDevice{},
 		&entities.NetwatchEvent{},
 		&entities.NetwatchConfig{},
+		&entities.DudeDeviceStatus{},
 		&entities.TicketLog{},
 
 		// Router
@@ -102,6 +103,10 @@ func AutoMigrate() {
 		if err := db.Migrator().CreateTable(model); err != nil {
 			log.Printf("Failed to create table for %T: %v", model, err)
 		}
+	}
+
+	if err := db.AutoMigrate(&entities.DudeDeviceStatus{}); err != nil {
+		log.Printf("Failed to migrate The Dude device status table: %v", err)
 	}
 
 	log.Println("Schema verification complete")

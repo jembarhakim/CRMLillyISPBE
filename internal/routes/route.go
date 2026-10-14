@@ -34,6 +34,7 @@ import (
 	newsapi "skripsi-be/internal/api/news"
 	telegramapi "skripsi-be/internal/api/telegram"
 	ticketapi "skripsi-be/internal/api/ticket"
+	dudeStatus "skripsi-be/internal/api/webhook/dude_status"
 	midtrans "skripsi-be/internal/api/webhook/midtrans"
 	"skripsi-be/internal/api/webhook/moota"
 	waapi "skripsi-be/internal/api/webhook/wa"
@@ -126,6 +127,8 @@ func RouteFiber(app *fiber.App) {
 
 	webhook := api.Group("/webhook")
 	moota.WebhookMootaRoute(webhook.Group("/moota"))
+	dudeStatus.Routes(webhook.Group("/dude-status"), database.GetDB())
+	dudeStatus.AdminRoutes(admin.Group("/dude-devices"), database.GetDB())
 
 	webhookPlain := app.Group("/webhook")
 	midtrans.WebhookMidtransRoute(webhookPlain.Group("/midtrans"))

@@ -10,6 +10,7 @@ import (
 func MikroTikRoutes(app fiber.Router) {
 	// Create handler instance with proper MikroTik service
 	handler := NewMikroTikHandler(services.GetSharedMikroTikService())
+	routerOSHandler := NewRouterOSHandler()
 
 	// Apply auth middleware
 	app.Use(helpers.VerifyToken)
@@ -39,4 +40,12 @@ func MikroTikRoutes(app fiber.Router) {
 
 	// DHCP lease management
 	app.Post("/dhcp-lease", handler.GetDHCPLease)
+
+	// The Dude monitoring through RouterOS API
+	routerOS := app.Group("/routeros")
+	routerOS.Post("/connect", helpers.RequireRoles("ADMIN"), routerOSHandler.Connect)
+	routerOS.Post("/disconnect", helpers.RequireRoles("ADMIN"), routerOSHandler.Disconnect)
+	routerOS.Get("/status", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.Status)
+	routerOS.Get("/dude/devices", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListDudeDevices)
+	routerOS.Get("/dude/services", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListDudeServices)
 }

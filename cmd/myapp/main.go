@@ -57,7 +57,7 @@ func main() {
 	})
 	// CORS configuration
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000, http://127.0.0.1:3000, http://192.168.1.7:3000, http://192.168.1.11:3000, http://localhost:3002, http://127.0.0.1:3002, http://192.168.1.11:3002, https://menara.net.id, http://rndpolije.lilly.net.id, https://rndpolije.lilly.net.id, http://rndpolije.lilly.net.id:3000, https://rndpolije.lilly.net.id:3000",
+		AllowOrigins:     "http://localhost:3000, http://127.0.0.1:3000, http://192.168.1.7:3000, http://192.168.1.11:3000, http://localhost:3002, http://127.0.0.1:3002, http://192.168.1.11:3002, http://localhost:5173, http://127.0.0.1:5173, https://menara.net.id, http://rndpolije.lilly.net.id, https://rndpolije.lilly.net.id, http://rndpolije.lilly.net.id:3000, https://rndpolije.lilly.net.id:3000",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
