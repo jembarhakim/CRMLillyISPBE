@@ -9,6 +9,7 @@ type ItemsTransactionServiceInterface interface {
 	UpdateItemsTransactionService(request UpdateItemsTransactionRequest) (ItemsTransactionResponse, error)
 	DeleteItemsTransactionService(request IdItemsTransactionRequest, transactionType string) error
 	DeleteItemsTransactionDetailService(request DeleteItemsTransactionDetailRequest) error
+	CreateTransferService(request CreateTransferRequest, createdBy string) (TransferResponse, error)
 }
 
 type ItemsTransactionServiceStruct struct {
@@ -41,6 +42,31 @@ func (s ItemsTransactionServiceStruct) DeleteItemsTransactionService(request IdI
 
 func (s ItemsTransactionServiceStruct) DeleteItemsTransactionDetailService(request DeleteItemsTransactionDetailRequest) error {
 	return s.repository.DeleteItemsTransactionDetailRepository(request)
+}
+
+func (s ItemsTransactionServiceStruct) CreateTransferService(request CreateTransferRequest, createdBy string) (TransferResponse, error) {
+	return s.repository.CreateTransferRepository(request, createdBy)
+}
+
+// TransferItemResponse is one (item, unit) line of a transfer.
+type TransferItemResponse struct {
+	IdItems  string  `json:"id_items"`
+	Quantity int     `json:"quantity"`
+	Unit     string  `json:"unit"`
+	Notes    *string `json:"notes,omitempty"`
+}
+
+// TransferResponse describes a stock transfer: one outgoing and one incoming row sharing TransferRef.
+type TransferResponse struct {
+	TransferRef         string                 `json:"transfer_ref"`
+	OutgoingID          string                 `json:"outgoing_id"`
+	IncomingID          string                 `json:"incoming_id"`
+	Date                string                 `json:"date"`
+	SourceHolderID      *string                `json:"source_holder_id"` // null = main warehouse
+	DestinationHolderID string                 `json:"destination_holder_id"`
+	Notes               *string                `json:"notes,omitempty"`
+	CreatedBy           string                 `json:"created_by"`
+	Items               []TransferItemResponse `json:"items"`
 }
 
 // ItemsTransactionResponse - Unified response structure

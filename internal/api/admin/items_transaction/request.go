@@ -37,3 +37,22 @@ type DeleteItemsTransactionDetailRequest struct {
 	DetailID       string `json:"detail_id" validate:"required"` // For now, we'll use composite key (IdKeluar/IdMasuk + IdItems)
 }
 
+// CreateTransferItemRequest is intentionally separate from CreateItemsTransactionDetail so the
+// unit rule below applies to transfers only and the legacy POST / route keeps its behaviour.
+type CreateTransferItemRequest struct {
+	IdItems  string  `json:"id_items" validate:"required"`
+	Quantity int     `json:"quantity" validate:"required,min=1"`
+	Unit     string  `json:"unit" validate:"required,oneof=PCS M KG BOX ROLL"`
+	Notes    *string `json:"notes"`
+}
+
+// CreateTransferRequest - INV-02 stock transfer between two holders.
+// SourceHolderID empty/absent means the main warehouse. The user who records the transfer
+// (the token owner) is only the actor and is stored in created_by, never as the source holder.
+type CreateTransferRequest struct {
+	SourceHolderID      *string                     `json:"source_holder_id"`
+	DestinationHolderID string                      `json:"destination_holder_id" validate:"required"` // must be a TECHNICIAN user
+	Date                string                      `json:"date" validate:"required"`                  // YYYY-MM-DD
+	Notes               *string                     `json:"notes"`
+	Items               []CreateTransferItemRequest `json:"items" validate:"required,min=1,dive"`
+}

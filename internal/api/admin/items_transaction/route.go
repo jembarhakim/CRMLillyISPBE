@@ -2,6 +2,7 @@ package items_transaction
 
 import (
 	"skripsi-be/internal/config/database"
+	"skripsi-be/internal/helpers"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,5 +22,9 @@ func ItemsTransactionRoute(router fiber.Router) {
 	router.Post("/", handler.CreateItemsTransactionHandler)
 	router.Put("/:id", handler.UpdateItemsTransactionHandler)
 	router.Delete("/:id", handler.DeleteItemsTransactionHandler)
+
+	// INV-02: stock transfer between holders. Auth is applied on this route only; the routes above
+	// are left untouched on purpose.
+	router.Post("/transfers", helpers.VerifyToken, handler.CreateTransferHandler)
 }
 
