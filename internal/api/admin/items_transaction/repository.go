@@ -32,6 +32,8 @@ type ItemsTransactionRepositoryInterface interface {
 	DeleteItemsTransactionRepository(request IdItemsTransactionRequest, transactionType string) error
 	DeleteItemsTransactionDetailRepository(request DeleteItemsTransactionDetailRequest) error
 	CreateTransferRepository(request CreateTransferRequest, createdBy string) (TransferResponse, error)
+	GetStockBalancesRepository(request GetStockBalanceRequest) ([]StockBalanceResponse, error)
+	GetStockMutationsRepository(request GetStockMutationsRequest) (StockMutationListResponse, error)
 }
 
 type ItemsTransactionRepositoryStruct struct {
@@ -589,6 +591,309 @@ func transferHolderStock(tx *gorm.DB, holder *string, itemID, unit string) (int6
 	}
 
 	return totalIn - totalOut, nil
+}
+
+// WarehouseLabel is the holder name shown for rows whose holder_id is NULL.
+const WarehouseLabel = "Gudang Utama"
+
+// stockBalanceUnionSQL lists every stock movement as a signed quantity (+ received, - released)
+// together with its holder. holder_id NULL = main warehouse, which also covers every legacy row.
+// NULL quantities count as 0 and a NULL unit counts as the column default (PCS).
+const stockBalanceUnionSQL = `
+SELECT d.item_id AS item_id, COALESCE(d.unit, 'PCS') AS unit, h.holder_id AS holder_id, COALESCE(d.QtyMasuk, 0) AS qty
+FROM detail_itemsmasuk AS d
+JOIN itemsmasuk AS h ON h.id = d.IdMasuk
+UNION ALL
+SELECT d.item_id, COALESCE(d.unit, 'PCS'), h.holder_id, -COALESCE(d.QtyKeluar, 0)
+FROM detail_itemskeluar AS d
+JOIN itemskeluar AS h ON h.id = d.IdKeluar`
+
+// stockMutationUnionSQL lists every line of every transaction. A row that carries a transfer_ref is
+// one half of a transfer. Quantities are positive; the kind tells the direction.
+const stockMutationUnionSQL = `
+SELECT h.id AS ref,
+	   CASE WHEN h.transfer_ref IS NULL THEN 'in' ELSE 'transfer_in' END AS kind,
+	   h.transfer_ref AS transfer_ref,
+	   h.date AS tx_date,
+	   d.item_id AS item_id,
+	   COALESCE(d.unit, 'PCS') AS unit,
+	   COALESCE(d.QtyMasuk, 0) AS quantity,
+	   h.holder_id AS holder_id,
+	   h.created_by AS recorded_by_id,
+	   h.notes AS notes,
+	   d.notes AS item_notes,
+	   h.created_at AS created_at
+FROM detail_itemsmasuk AS d
+JOIN itemsmasuk AS h ON h.id = d.IdMasuk
+UNION ALL
+SELECT h.id,
+	   CASE WHEN h.transfer_ref IS NULL THEN 'out' ELSE 'transfer_out' END,
+	   h.transfer_ref,
+	   h.date,
+	   d.item_id,
+	   COALESCE(d.unit, 'PCS'),
+	   COALESCE(d.QtyKeluar, 0),
+	   h.holder_id,
+	   h.created_by,
+	   h.notes,
+	   d.notes,
+	   h.created_at
+FROM detail_itemskeluar AS d
+JOIN itemskeluar AS h ON h.id = d.IdKeluar`
+
+// holderCondition builds the SQL for a holder filter. column is always a constant from this file,
+// never user input; the holder value itself is passed as a bound argument.
+func holderCondition(column string, holder string) (string, []interface{}) {
+	switch holder {
+	case "":
+		return "", nil
+	case HolderWarehouse:
+		return " AND " + column + " IS NULL", nil
+	default:
+		return " AND " + column + " = ?", []interface{}{holder}
+	}
+}
+
+// loadNames returns id -> name for the given ids of one table ("items" or "users").
+func (r ItemsTransactionRepositoryStruct) loadNames(table string, ids []string) (map[string]string, error) {
+	names := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return names, nil
+	}
+
+	var rows []struct {
+		ID   string `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+	if err := r.db.Table(table).Select("id, COALESCE(name, '') AS name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		names[row.ID] = row.Name
+	}
+	return names, nil
+}
+
+// displayName falls back to the id when the name is unknown or empty.
+func displayName(id string, names map[string]string) string {
+	if name := names[id]; name != "" {
+		return name
+	}
+	return id
+}
+
+func holderDisplayName(holderID *string, names map[string]string) string {
+	if holderID == nil {
+		return WarehouseLabel
+	}
+	return displayName(*holderID, names)
+}
+
+func uniqueIDs(groups ...[]string) []string {
+	seen := make(map[string]struct{})
+	ids := make([]string, 0)
+	for _, group := range groups {
+		for _, id := range group {
+			if id == "" {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+type stockBalanceRow struct {
+	ItemID   string  `gorm:"column:item_id"`
+	Unit     string  `gorm:"column:unit"`
+	HolderID *string `gorm:"column:holder_id"`
+	Balance  int64   `gorm:"column:balance"`
+}
+
+// GetStockBalancesRepository returns the stock per (holder, item, unit): everything the holder
+// received minus everything it released. Units and holders are never summed together. Rows whose
+// item no longer exists (item_id NULL) are left out.
+func (r ItemsTransactionRepositoryStruct) GetStockBalancesRepository(request GetStockBalanceRequest) ([]StockBalanceResponse, error) {
+	query := "SELECT m.item_id AS item_id, m.unit AS unit, m.holder_id AS holder_id, SUM(m.qty) AS balance FROM (" +
+		stockBalanceUnionSQL + ") AS m WHERE m.item_id IS NOT NULL"
+	args := make([]interface{}, 0, 4)
+
+	if request.ItemID != "" {
+		query += " AND m.item_id = ?"
+		args = append(args, request.ItemID)
+	}
+	if request.Unit != "" {
+		query += " AND m.unit = ?"
+		args = append(args, request.Unit)
+	}
+	condition, conditionArgs := holderCondition("m.holder_id", request.HolderID)
+	query += condition
+	args = append(args, conditionArgs...)
+
+	query += " GROUP BY m.item_id, m.unit, m.holder_id"
+	if !request.IncludeZero {
+		query += " HAVING SUM(m.qty) <> 0"
+	}
+
+	var rows []stockBalanceRow
+	if err := r.db.Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	itemIDs := make([]string, 0, len(rows))
+	holderIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		itemIDs = append(itemIDs, row.ItemID)
+		if row.HolderID != nil {
+			holderIDs = append(holderIDs, *row.HolderID)
+		}
+	}
+	itemNames, err := r.loadNames("items", uniqueIDs(itemIDs))
+	if err != nil {
+		return nil, err
+	}
+	userNames, err := r.loadNames("users", uniqueIDs(holderIDs))
+	if err != nil {
+		return nil, err
+	}
+
+	balances := make([]StockBalanceResponse, 0, len(rows))
+	for _, row := range rows {
+		balances = append(balances, StockBalanceResponse{
+			ItemID:     row.ItemID,
+			ItemName:   displayName(row.ItemID, itemNames),
+			Unit:       row.Unit,
+			HolderID:   row.HolderID,
+			HolderName: holderDisplayName(row.HolderID, userNames),
+			Balance:    row.Balance,
+		})
+	}
+	sort.SliceStable(balances, func(i, j int) bool {
+		a, b := balances[i], balances[j]
+		if a.ItemName != b.ItemName {
+			return a.ItemName < b.ItemName
+		}
+		if a.ItemID != b.ItemID {
+			return a.ItemID < b.ItemID
+		}
+		if a.Unit != b.Unit {
+			return a.Unit < b.Unit
+		}
+		if (a.HolderID == nil) != (b.HolderID == nil) {
+			return a.HolderID == nil // main warehouse first
+		}
+		return a.HolderName < b.HolderName
+	})
+	return balances, nil
+}
+
+type stockMutationRow struct {
+	Ref          string  `gorm:"column:ref"`
+	Kind         string  `gorm:"column:kind"`
+	TransferRef  *string `gorm:"column:transfer_ref"`
+	TxDate       string  `gorm:"column:tx_date"`
+	ItemID       string  `gorm:"column:item_id"`
+	Unit         string  `gorm:"column:unit"`
+	Quantity     int64   `gorm:"column:quantity"`
+	HolderID     *string `gorm:"column:holder_id"`
+	RecordedByID string  `gorm:"column:recorded_by_id"`
+	Notes        *string `gorm:"column:notes"`
+	ItemNotes    *string `gorm:"column:item_notes"`
+	CreatedAt    string  `gorm:"column:created_at"`
+}
+
+// GetStockMutationsRepository returns one page of the mutation history, newest first, with the
+// names of the item, the holder and the person who recorded the transaction.
+func (r ItemsTransactionRepositoryStruct) GetStockMutationsRepository(request GetStockMutationsRequest) (StockMutationListResponse, error) {
+	where := " WHERE 1 = 1"
+	args := make([]interface{}, 0, 8)
+
+	if request.ItemID != "" {
+		where += " AND t.item_id = ?"
+		args = append(args, request.ItemID)
+	}
+	condition, conditionArgs := holderCondition("t.holder_id", request.HolderID)
+	where += condition
+	args = append(args, conditionArgs...)
+	if request.Kind != "" {
+		where += " AND t.kind = ?"
+		args = append(args, request.Kind)
+	}
+	if request.DateFrom != "" {
+		where += " AND t.tx_date >= ?"
+		args = append(args, request.DateFrom)
+	}
+	if request.DateTo != "" {
+		where += " AND t.tx_date <= ?"
+		args = append(args, request.DateTo)
+	}
+
+	result := StockMutationListResponse{Limit: request.Limit, Offset: request.Offset, Items: []StockMutationResponse{}}
+
+	if err := r.db.Raw("SELECT COUNT(*) FROM ("+stockMutationUnionSQL+") AS t"+where, args...).Scan(&result.Total).Error; err != nil {
+		return StockMutationListResponse{}, err
+	}
+	if result.Total == 0 {
+		return result, nil
+	}
+
+	listQuery := "SELECT t.ref AS ref, t.kind AS kind, t.transfer_ref AS transfer_ref, " +
+		"DATE_FORMAT(t.tx_date, '%Y-%m-%d') AS tx_date, t.item_id AS item_id, t.unit AS unit, " +
+		"t.quantity AS quantity, t.holder_id AS holder_id, t.recorded_by_id AS recorded_by_id, " +
+		"t.notes AS notes, t.item_notes AS item_notes, " +
+		"COALESCE(DATE_FORMAT(t.created_at, '%Y-%m-%dT%H:%i:%s'), '') AS created_at " +
+		"FROM (" + stockMutationUnionSQL + ") AS t" + where +
+		" ORDER BY t.tx_date DESC, t.created_at DESC, t.ref DESC, t.item_id ASC LIMIT ? OFFSET ?"
+	listArgs := append(append(make([]interface{}, 0, len(args)+2), args...), request.Limit, request.Offset)
+
+	var rows []stockMutationRow
+	if err := r.db.Raw(listQuery, listArgs...).Scan(&rows).Error; err != nil {
+		return StockMutationListResponse{}, err
+	}
+
+	itemIDs := make([]string, 0, len(rows))
+	userIDs := make([]string, 0, len(rows)*2)
+	for _, row := range rows {
+		itemIDs = append(itemIDs, row.ItemID)
+		userIDs = append(userIDs, row.RecordedByID)
+		if row.HolderID != nil {
+			userIDs = append(userIDs, *row.HolderID)
+		}
+	}
+	itemNames, err := r.loadNames("items", uniqueIDs(itemIDs))
+	if err != nil {
+		return StockMutationListResponse{}, err
+	}
+	userNames, err := r.loadNames("users", uniqueIDs(userIDs))
+	if err != nil {
+		return StockMutationListResponse{}, err
+	}
+
+	for _, row := range rows {
+		result.Items = append(result.Items, StockMutationResponse{
+			Ref:            row.Ref,
+			Kind:           row.Kind,
+			TransferRef:    row.TransferRef,
+			Date:           row.TxDate,
+			ItemID:         row.ItemID,
+			ItemName:       displayName(row.ItemID, itemNames),
+			Unit:           row.Unit,
+			Quantity:       row.Quantity,
+			HolderID:       row.HolderID,
+			HolderName:     holderDisplayName(row.HolderID, userNames),
+			RecordedByID:   row.RecordedByID,
+			RecordedByName: displayName(row.RecordedByID, userNames),
+			Notes:          row.Notes,
+			ItemNotes:      row.ItemNotes,
+			CreatedAt:      row.CreatedAt,
+		})
+	}
+	return result, nil
 }
 
 func (r ItemsTransactionRepositoryStruct) FindByIdItemsTransactionRepository(request IdItemsTransactionRequest, transactionType string) (ItemsTransactionResponse, error) {
