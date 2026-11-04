@@ -20,6 +20,7 @@ import (
 	"skripsi-be/internal/api/admin/mikrotik"
 	networkdevice "skripsi-be/internal/api/admin/network-device"
 	network_monitoring "skripsi-be/internal/api/admin/network_monitoring"
+	notificationsapi "skripsi-be/internal/api/admin/notifications"
 	"skripsi-be/internal/api/admin/product"
 	"skripsi-be/internal/api/admin/recurring_invoice"
 	"skripsi-be/internal/api/admin/report"
@@ -86,6 +87,7 @@ func RouteFiber(app *fiber.App) {
 	transaction.AdminTrasactionRoute(admin.Group("/transaction"))
 	invoice.AdminInvoiceRoute(admin.Group("/invoice"))
 	recurring_invoice.AdminRecurringInvoiceRoute(admin.Group("/recurring-invoice"))
+	notificationsapi.RegisterAdminRoutes(admin.Group("/notifications"), database.GetDB())
 	mikrotik.MikroTikRoutes(admin.Group("/mikrotik"))
 	geocoding.AdminGeocodingRoute(admin.Group("/geocoding"))
 	inventory.InventoryRoute(admin)
@@ -127,8 +129,8 @@ func RouteFiber(app *fiber.App) {
 
 	webhook := api.Group("/webhook")
 	moota.WebhookMootaRoute(webhook.Group("/moota"))
-	dudeStatus.Routes(webhook.Group("/dude-status"), database.GetDB())
-	dudeStatus.AdminRoutes(admin.Group("/dude-devices"), database.GetDB())
+	notificationsapi.RegisterWebhookRoutes(webhook.Group("/wa"), database.GetDB())
+	dudeStatus.RegisterRoutes(webhook.Group("/dude-status"), admin.Group("/dude-devices"), database.GetDB())
 
 	webhookPlain := app.Group("/webhook")
 	midtrans.WebhookMidtransRoute(webhookPlain.Group("/midtrans"))

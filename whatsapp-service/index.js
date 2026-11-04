@@ -94,6 +94,37 @@ client.on('disconnected', (reason) => {
     }, 5000);
 });
 
+client.on('message_ack', async (message, ack) => {
+    const webhookUrl = process.env.WHATSAPP_STATUS_WEBHOOK_URL;
+    const webhookToken = process.env.WHATSAPP_STATUS_WEBHOOK_TOKEN;
+    if (!webhookUrl || !webhookToken || !message?.id?._serialized) return;
+
+    const status = ack >= 2 ? 'delivered' : ack === 1 ? 'sent' : '';
+    if (!status) return;
+
+    for (const delay of [0, 1000, 3000]) {
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        try {
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WhatsApp-Webhook-Token': webhookToken
+                },
+                body: JSON.stringify({
+                    message_id: message.id._serialized,
+                    status,
+                    details: `whatsapp-web.js acknowledgement ${ack}`
+                })
+            });
+            if (response.ok) return;
+            console.error(`[WA] Delivery status callback failed: HTTP ${response.status}`);
+        } catch (error) {
+            console.error('[WA] Delivery status callback failed:', error.message);
+        }
+    }
+});
+
 // Initialize client
 console.log('[WA] Initializing WhatsApp client...');
 console.log('[WA] Checking for existing session...');
@@ -227,4 +258,3 @@ process.on('SIGINT', async () => {
     await client.destroy();
     process.exit(0);
 });
-

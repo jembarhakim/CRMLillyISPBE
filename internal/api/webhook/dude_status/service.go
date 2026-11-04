@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"strings"
+	"sync"
 
 	"skripsi-be/internal/models/entities"
 
@@ -20,12 +21,16 @@ type StatusBroadcaster interface {
 type Service struct {
 	repository  StatusRepository
 	broadcaster StatusBroadcaster
+	pingMu      sync.Mutex
+	pingState   PingJobStatus
+	pingHost    func(string) (bool, error)
 }
 
 func NewService(repository StatusRepository, broadcaster StatusBroadcaster) *Service {
 	return &Service{
 		repository:  repository,
 		broadcaster: broadcaster,
+		pingHost:    pingIP,
 	}
 }
 

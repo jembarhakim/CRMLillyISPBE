@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"skripsi-be/internal/models/entities"
+	"skripsi-be/internal/notifications"
 	"skripsi-be/internal/telegram"
 	"time"
 )
@@ -41,6 +42,7 @@ func (s *Service) CreateCS(input entities.TroubleTicket, classification string) 
 	if err := s.repo.Create(&input); err != nil {
 		return nil, err
 	}
+	notifications.QueueTicketCreated(s.repo.DB, &input)
 
 	// Send Telegram notification to CS channel
 	if err := s.telegramService.SendTicketNotification("CUSTOMER SERVICE", &input, "Tiket Baru Dibuat"); err != nil {
@@ -122,6 +124,7 @@ func (s *Service) SendToNOC(id uint64, note string, imageFilename *string) (*ent
 	if err := s.repo.Save(t); err != nil {
 		return nil, err
 	}
+	notifications.QueueTicketInProgress(s.repo.DB, t)
 
 	// Send Telegram notification to NOC channel
 	if err := s.telegramService.SendTicketNotification("NOC", t, "Tiket Ditugaskan ke NOC"); err != nil {
@@ -314,6 +317,7 @@ func (s *Service) CSResolve(id uint64, note string) (*entities.TroubleTicket, er
 	if err := s.repo.Save(t); err != nil {
 		return nil, err
 	}
+	notifications.QueueTicketCompleted(s.repo.DB, t, "ticket_resolved")
 	return t, nil
 }
 
@@ -363,6 +367,7 @@ func (s *Service) AcceptTicket(id uint64, technicianUserID string) (*entities.Tr
 	if err := s.repo.Save(t); err != nil {
 		return nil, err
 	}
+	notifications.QueueTicketAccepted(s.repo.DB, t, technicianUserID)
 	return t, nil
 }
 
@@ -425,6 +430,7 @@ func (s *Service) VerifyAndClose(ticketID uint64, csUserID string) (*entities.Tr
 		}).Error; err != nil {
 		return nil, err
 	}
+	notifications.QueueTicketCompleted(s.repo.DB, t, "ticket_resolved")
 	return t, nil
 }
 
@@ -440,6 +446,7 @@ func (s *Service) MarkTechnicianCompleted(ticketID uint64, technicianUserID stri
 	if err := s.telegramService.SendTicketNotification("CUSTOMER SERVICE", ticket, "Pekerjaan Teknisi Selesai - Siap untuk Review CS"); err != nil {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
+	notifications.QueueTicketCompleted(s.repo.DB, ticket, "work_order_completed")
 
 	return ticket, nil
 }

@@ -26,6 +26,8 @@ This service uses [whatsapp-web.js](https://wwebjs.dev/) to send WhatsApp messag
 4. **Environment Variables (optional):**
    ```bash
    WHATSAPP_SERVICE_PORT=3002  # Default: 3002
+   WHATSAPP_STATUS_WEBHOOK_URL=http://localhost:3001/api/webhook/wa/status
+   WHATSAPP_STATUS_WEBHOOK_TOKEN=the_same_secret_as_the_backend
    ```
 
 ## API Endpoints
@@ -106,13 +108,13 @@ sudo systemctl start whatsapp-service
 - After the first scan, you don't need to scan again unless you log out
 - Phone numbers are automatically normalized (08xxx → 628xxx)
 - The service runs on port 3002 by default
+- When both status callback variables are set, sent/delivered acknowledgements are posted to the backend notification queue.
 
 ## Troubleshooting
 
 1. **QR Code not showing**: Make sure you have `qrcode-terminal` installed
 2. **Connection lost**: Restart the service, it will reconnect automatically
 3. **Message not sending**: Check if WhatsApp client is ready via `/health` endpoint
-
 
 
 

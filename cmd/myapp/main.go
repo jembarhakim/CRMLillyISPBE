@@ -11,6 +11,7 @@ import (
 
 	"skripsi-be/internal/api/admin/recurring_invoice"
 	"skripsi-be/internal/config/database"
+	"skripsi-be/internal/notifications"
 	"skripsi-be/internal/routes"
 	"skripsi-be/internal/services"
 
@@ -69,6 +70,7 @@ func main() {
 
 	// Initialize routes
 	routes.RouteFiber(app)
+	go notifications.StartWorker(database.GetDB())
 
 	// Auto-connect to MikroTik on startup if credentials are available
 	go func() {
@@ -120,6 +122,12 @@ func main() {
 				log.Printf("[recurring] run error after %s: %v", dur, err)
 			} else if n > 0 {
 				log.Printf("[recurring] generated %d invoices in %s", n, dur)
+			}
+			queued, reminderErr := notifications.NewService(db).EnqueueInvoiceReminders(time.Now())
+			if reminderErr != nil {
+				log.Printf("[notifications] invoice reminder enqueue failed: %v", reminderErr)
+			} else if queued > 0 {
+				log.Printf("[notifications] queued %d invoice reminders", queued)
 			}
 		}
 

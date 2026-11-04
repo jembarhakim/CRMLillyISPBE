@@ -3,43 +3,14 @@ package broadcast
 import (
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	wa "skripsi-be/internal/api/webhook/wa"
 	"skripsi-be/internal/models/entities"
+	"skripsi-be/internal/notifications"
 )
-
-// normalizePhoneNumber normalizes Indonesian phone numbers to WhatsApp format
-// Converts: 08970833338 -> 628970833338
-// Converts: +628970833338 -> 628970833338
-// Converts: 628970833338 -> 628970833338 (already correct)
-func normalizePhoneNumber(phone string) string {
-	// Remove all whitespace and non-digit characters except +
-	phone = strings.TrimSpace(phone)
-	phone = strings.ReplaceAll(phone, " ", "")
-	phone = strings.ReplaceAll(phone, "-", "")
-
-	// Remove + if present
-	if strings.HasPrefix(phone, "+") {
-		phone = phone[1:]
-	}
-
-	// If starts with 0, replace with 62 (Indonesia country code)
-	if strings.HasPrefix(phone, "0") {
-		phone = "62" + phone[1:]
-	}
-
-	// If doesn't start with 62, add it (assuming Indonesian numbers)
-	if !strings.HasPrefix(phone, "62") && len(phone) >= 9 {
-		phone = "62" + phone
-	}
-
-	return phone
-}
 
 // PersonalizedMessage represents a phone number and its personalized message
 type PersonalizedMessage struct {
@@ -76,7 +47,7 @@ func HandleSendBroadcast(c *fiber.Ctx, db *gorm.DB) error {
 
 	// Debug: Log the received request
 	log.Printf("[BROADCAST] Received request: Target=%s, Message=%s, PersonalizedMessages=%d, Phones=%d",
-		request.Target, 
+		request.Target,
 		func() string {
 			if len(request.Message) > 50 {
 				return request.Message[:50] + "..."
@@ -100,7 +71,7 @@ func HandleSendBroadcast(c *fiber.Ctx, db *gorm.DB) error {
 			"error": "message or personalized_messages is required",
 		})
 	}
-	
+
 	// Additional validation: if personalized_messages is provided, ensure it has at least one entry
 	if len(request.PersonalizedMessages) > 0 {
 		for i, pm := range request.PersonalizedMessages {
@@ -197,81 +168,55 @@ func HandleSendBroadcast(c *fiber.Ctx, db *gorm.DB) error {
 		})
 	}
 
-	// Initialize WhatsApp service
-	waService := wa.NewWAService()
-
-	// Track sending results
-	successCount := 0
+	queueService := notifications.NewService(db)
+	queuedCount := 0
 	failedCount := 0
 	var failedPhones []string
 
-	// Send messages to all recipients
-	log.Printf("[BROADCAST] Starting to send %d messages to %s", len(phoneList), request.Target)
+	// Queue messages individually so large broadcasts do not block the HTTP request.
+	log.Printf("[BROADCAST] Queueing %d messages for %s", len(phoneList), request.Target)
 	for _, phone := range phoneList {
-		// Normalize phone number to WhatsApp format (628xxxxxxxxx)
-		normalizedPhone := normalizePhoneNumber(phone)
-		log.Printf("[BROADCAST] Normalizing phone: %s -> %s", phone, normalizedPhone)
-
-		// Determine which message to send
 		var messageToSend string
 		if len(messageMap) > 0 {
-			// Use personalized message if available
 			if personalizedMsg, ok := messageMap[phone]; ok {
 				messageToSend = personalizedMsg
 			} else {
-				// Fallback to base message if phone not found in map
 				messageToSend = baseMessage
 			}
 		} else {
-			// Use regular message
 			messageToSend = request.Message
 		}
-
-		// Log first 50 chars of message for debugging
-		msgPreview := messageToSend
-		if len(msgPreview) > 50 {
-			msgPreview = msgPreview[:50] + "..."
+		templateKey := request.TemplateKey
+		if templateKey == "" {
+			templateKey = "broadcast"
 		}
-		log.Printf("[BROADCAST] Sending message to %s (normalized: %s): %s", phone, normalizedPhone, msgPreview)
-
-		err := waService.SendMessage(normalizedPhone, messageToSend)
-		if err != nil {
-			log.Printf("[BROADCAST] Failed to send to %s (normalized: %s): %v", phone, normalizedPhone, err)
+		if err := queueService.EnqueueRaw(phone, messageToSend, templateKey, broadcastHistory.ID); err != nil {
+			log.Printf("[BROADCAST] Failed to queue recipient %s: %v", phone, err)
 			failedCount++
 			failedPhones = append(failedPhones, phone)
 		} else {
-			successCount++
-			log.Printf("[BROADCAST] Successfully sent to %s (normalized: %s)", phone, normalizedPhone)
+			queuedCount++
 		}
 	}
 
-	// Update broadcast history status based on results
-	// Note: Database enum only allows 'sent', 'failed', 'pending'
-	// For partial success, we'll use 'sent' status (the failed_count in response indicates partial failure)
-	if failedCount > 0 {
-		if successCount == 0 {
-			broadcastHistory.Status = "failed"
-		} else {
-			// Partial success - use "sent" status (failed_count in response will indicate partial failure)
-			broadcastHistory.Status = "sent"
-		}
-		// Update the record
+	if queuedCount == 0 {
+		broadcastHistory.Status = "failed"
 		if err := db.Model(&broadcastHistory).Update("status", broadcastHistory.Status).Error; err != nil {
 			log.Printf("Error updating broadcast history status: %v", err)
 		}
-		log.Printf("[BROADCAST] Updated status to %s (%d success, %d failed)", broadcastHistory.Status, successCount, failedCount)
-	} else {
-		// All succeeded, update to "sent"
-		if err := db.Model(&broadcastHistory).Update("status", "sent").Error; err != nil {
-			log.Printf("Error updating broadcast history status: %v", err)
-		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":        "failed",
+			"recipients":    len(phoneList),
+			"success_count": 0,
+			"failed_count":  failedCount,
+			"failed_phones": failedPhones,
+		})
 	}
 
-	// Return success response with details
 	return c.JSON(fiber.Map{
-		"status":        "broadcast sent",
+		"status":        "queued",
 		"recipients":    len(phoneList),
-		"success_count": successCount,
+		"success_count": queuedCount,
 		"failed_count":  failedCount,
 		"failed_phones": failedPhones,
 	})
