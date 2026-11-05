@@ -59,6 +59,12 @@ func RouteFiber(app *fiber.App) {
 
 	api := app.Group("/api")
 
+	api.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"status": "ok",
+		})
+	})
+
 	upload_file.CommonUploadFileRoute(api.Group("/file-upload"))
 	product.PublicProductRoute(api.Group("/product"))
 
