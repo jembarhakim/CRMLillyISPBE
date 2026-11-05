@@ -20,3 +20,4 @@ func ItemsCatalogRoute(app fiber.Router) {
 	app.Put("/:id", handler.UpdateItemHandler)
 	app.Delete("/:id", handler.DeleteItemHandler)
 }
+
