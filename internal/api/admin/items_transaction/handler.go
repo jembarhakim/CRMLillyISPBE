@@ -17,6 +17,8 @@ type ItemsTransactionHandlerInterface interface {
 	UpdateItemsTransactionHandler(c *fiber.Ctx) error
 	DeleteItemsTransactionHandler(c *fiber.Ctx) error
 	CreateTransferHandler(c *fiber.Ctx) error
+	GetStockBalanceHandler(c *fiber.Ctx) error
+	GetStockMutationsHandler(c *fiber.Ctx) error
 }
 
 type ItemsTransactionHandlerStruct struct {
@@ -135,6 +137,39 @@ func (h *ItemsTransactionHandlerStruct) CreateTransferHandler(c *fiber.Ctx) erro
 	}
 
 	return helpers.ResponseUtils(c, fiber.StatusCreated, true, "Success create stock transfer", transfer)
+}
+
+// GetStockBalanceHandler returns the stock per holder, item and unit.
+// Query: item_id, holder_id (warehouse = main warehouse, empty = every holder), unit, include_zero.
+func (h *ItemsTransactionHandlerStruct) GetStockBalanceHandler(c *fiber.Ctx) error {
+	request, err := NewGetStockBalanceRequest(c.Query("item_id"), c.Query("holder_id"), c.Query("unit"), c.Query("include_zero"))
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, err.Error(), nil)
+	}
+
+	balances, err := h.service.GetStockBalancesService(request)
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, err.Error(), nil)
+	}
+
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "Success get stock balance", balances)
+}
+
+// GetStockMutationsHandler returns one page of the mutation history, newest first.
+// Query: item_id, holder_id, kind, date_from, date_to, limit (default 50, max 200), offset.
+func (h *ItemsTransactionHandlerStruct) GetStockMutationsHandler(c *fiber.Ctx) error {
+	request, err := NewGetStockMutationsRequest(c.Query("item_id"), c.Query("holder_id"), c.Query("kind"),
+		c.Query("date_from"), c.Query("date_to"), c.Query("limit"), c.Query("offset"))
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, err.Error(), nil)
+	}
+
+	mutations, err := h.service.GetStockMutationsService(request)
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, err.Error(), nil)
+	}
+
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "Success get stock mutations", mutations)
 }
 
 func (h *ItemsTransactionHandlerStruct) UpdateItemsTransactionHandler(c *fiber.Ctx) error {
