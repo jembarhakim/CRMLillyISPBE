@@ -57,14 +57,15 @@ func (i *ItemsMasuk) BeforeCreate(tx *gorm.DB) error {
 
 // Item - Item catalog (master data)
 type Item struct {
-	ID          string    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
-	Name        string    `gorm:"column:name;type:varchar(191);uniqueIndex;not null" json:"name"`
-	DefaultUnit string    `gorm:"column:default_unit;type:varchar(20);not null;default:'PCS'" json:"default_unit"`
-	Category    *string   `gorm:"column:category;type:varchar(100)" json:"category,omitempty"`
-	Description *string   `gorm:"column:description;type:text" json:"description,omitempty"`
-	AssetID     *string   `gorm:"column:asset_id;type:varchar(191);index" json:"asset_id,omitempty"`
-	CreatedAt   time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt   time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
+	ID           string    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	Name         string    `gorm:"column:name;type:varchar(191);uniqueIndex;not null" json:"name"`
+	DefaultUnit  string    `gorm:"column:default_unit;type:varchar(20);not null;default:'PCS'" json:"default_unit"`
+	Category     *string   `gorm:"column:category;type:varchar(100)" json:"category,omitempty"`
+	Description  *string   `gorm:"column:description;type:text" json:"description,omitempty"`
+	AssetID      *string   `gorm:"column:asset_id;type:varchar(191);index" json:"asset_id,omitempty"`
+	MinimumStock int       `gorm:"column:minimum_stock;type:int;not null;default:0" json:"minimum_stock"`
+	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
 
 	// Relationships
 	Asset *Asset `gorm:"foreignKey:AssetID;references:ID" json:"asset,omitempty"`
