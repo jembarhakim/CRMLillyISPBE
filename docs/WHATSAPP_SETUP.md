@@ -44,7 +44,8 @@ Create a `.env` file in your project root with:
 
 ```bash
 # Meta WhatsApp Business API Configuration
-WHATSAPP_API_URL=https://graph.facebook.com/v18.0
+WHATSAPP_DRIVER=meta
+WHATSAPP_META_API_URL=https://graph.facebook.com/v21.0
 WHATSAPP_API_TOKEN=your_meta_access_token_here
 WHATSAPP_PHONE_ID=your_phone_number_id_here
 ```
@@ -122,3 +123,23 @@ Meta WhatsApp Business API has rate limits:
 
 - [Meta WhatsApp Business API Documentation](https://developers.facebook.com/docs/whatsapp)
 - [Meta Business Support](https://business.facebook.com/help)
+
+## Notification Queue and CRM Integration
+
+The CRM now sends broadcast, ticket, work-order, and invoice reminder messages through a persistent queue. The worker retries failed deliveries with exponential backoff and applies a process-wide rate limit. Default limits are 10 messages/minute and 5 attempts.
+
+Choose a gateway with `WHATSAPP_DRIVER`:
+
+- `local`: `WHATSAPP_SERVICE_URL=http://localhost:3002` (whatsapp-web.js)
+- `fonnte`: `WHATSAPP_FONNTE_TOKEN` and optionally `WHATSAPP_FONNTE_URL`
+- `meta`: `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_ID`, and optionally `WHATSAPP_META_API_URL`
+
+Set `WHATSAPP_RATE_LIMIT_PER_MINUTE`, `WHATSAPP_MAX_RETRIES`, and `APP_BASE_URL` as needed. For the local gateway's delivered status updates, configure the same `WHATSAPP_STATUS_WEBHOOK_TOKEN` in both the Go backend and WhatsApp service, and set `WHATSAPP_STATUS_WEBHOOK_URL` for the WhatsApp service to `http://<backend-host>:3001/api/webhook/wa/status`. The callback endpoint accepts a message ID and `sent` or `delivered` status and rejects requests without the shared token.
+
+For Meta Cloud API delivery statuses, subscribe the Meta app to WhatsApp message status webhooks at `GET/POST /api/webhook/wa/status`, and configure `WHATSAPP_WEBHOOK_VERIFY_TOKEN` plus `WHATSAPP_APP_SECRET`. The backend verifies Meta's `X-Hub-Signature-256` before applying delivery updates.
+
+The backend creates the notification tables during startup. For managed databases where DDL is applied separately, execute [`../migrations/database-migration-whatsapp-notifications.sql`](../migrations/database-migration-whatsapp-notifications.sql).
+
+The authenticated admin API is under `/api/admin/notifications`; the Nuxt dashboard page is `/dashboard/notifications`. Invoice reminders are queued at H-3, on the due date, and H+1 for unpaid/pending invoices. Customers without an explicit preference are opted in; a preference record can disable invoice reminders for a customer. Paid invoices are checked again by the worker immediately before sending.
+
+Default editable template keys include `ticket_created`, `ticket_in_progress`, `ticket_resolved`, `work_order_assigned`, `work_order_scheduled`, `work_order_completed`, and the three `invoice_reminder_*` templates. Template variables use `{{nama_pelanggan}}` style keys.

@@ -6,7 +6,7 @@ type CreateItemRequest struct {
 	Category     *string `json:"category"`
 	Description  *string `json:"description"`
 	AssetID      *string `json:"asset_id"`
-	MinimumStock *int    `json:"minimum_stock" validate:"omitempty,gte=0"`
+	MinimumStock int     `json:"minimum_stock" validate:"gte=0"`
 }
 
 type IdItemRequest struct {

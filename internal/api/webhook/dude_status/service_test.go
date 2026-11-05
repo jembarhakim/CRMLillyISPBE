@@ -3,12 +3,14 @@ package dude_status
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"skripsi-be/internal/models/entities"
 )
 
 type fakeStatusRepository struct {
 	status      DeviceStatus
+	devices     []entities.DudeDeviceStatus
 	err         error
 	calls       int
 	updateCalls int
@@ -21,7 +23,7 @@ func (r *fakeStatusRepository) Upsert(status DeviceStatus) error {
 }
 
 func (r *fakeStatusRepository) List() ([]entities.DudeDeviceStatus, error) {
-	return nil, r.err
+	return r.devices, r.err
 }
 
 func (r *fakeStatusRepository) UpdateDetails(_ string, _ UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error) {
@@ -125,5 +127,53 @@ func TestUpdateDeviceDetailsRejectsIncompleteCoordinates(t *testing.T) {
 	}
 	if repository.updateCalls != 0 {
 		t.Fatalf("invalid coordinates caused %d repository updates, want 0", repository.updateCalls)
+	}
+}
+
+func TestStartPingAllRejectsEmptyDeviceList(t *testing.T) {
+	service := NewService(&fakeStatusRepository{}, &fakeStatusBroadcaster{})
+
+	if _, err := service.StartPingAll(); !errors.Is(err, ErrNoPingTargets) {
+		t.Fatalf("StartPingAll() error = %v, want %v", err, ErrNoPingTargets)
+	}
+}
+
+func TestStartPingAllChecksAndBroadcastsDeviceStatus(t *testing.T) {
+	repository := &fakeStatusRepository{
+		devices: []entities.DudeDeviceStatus{{
+			Name:      "Router Office",
+			IPAddress: "192.0.2.1",
+		}},
+	}
+	broadcaster := &fakeStatusBroadcaster{}
+	service := NewService(repository, broadcaster)
+	service.pingHost = func(ip string) (bool, error) {
+		if ip != "192.0.2.1" {
+			t.Errorf("ping IP = %q, want 192.0.2.1", ip)
+		}
+		return true, nil
+	}
+
+	job, err := service.StartPingAll()
+	if err != nil {
+		t.Fatalf("StartPingAll() error = %v", err)
+	}
+	if !job.Running || job.Total != 1 {
+		t.Fatalf("initial ping job = %+v, want running with one target", job)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for service.PingAllStatus().Running && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	job = service.PingAllStatus()
+	if job.Running || job.Completed != 1 || job.Up != 1 || job.Down != 0 || job.Failed != 0 {
+		t.Fatalf("completed ping job = %+v, want one successful UP result", job)
+	}
+	if repository.calls != 1 || repository.status.Status != "up" {
+		t.Fatalf("persisted ping status = (%d calls, %+v), want one UP update", repository.calls, repository.status)
+	}
+	if broadcaster.calls != 1 || broadcaster.status.Status != "up" {
+		t.Fatalf("broadcast ping status = (%d calls, %+v), want one UP update", broadcaster.calls, broadcaster.status)
 	}
 }

@@ -1,31 +1,23 @@
--- Migration: Add minimum_stock column to items catalog table
--- Adds a per-item minimum stock threshold used for low-stock alerts.
---
--- Note: MySQL does not support `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`,
--- so this script checks INFORMATION_SCHEMA before altering (same pattern as
--- add_unit_notes_to_items_tables.sql).
+-- Migration: Add minimum_stock column to items table (INV-01)
+-- Safe to re-run: checks INFORMATION_SCHEMA first, MySQL has no ADD COLUMN IF NOT EXISTS
+-- Runs against the currently selected database. Do not add a USE statement.
 
 SET @dbname = DATABASE();
-SET @tablename = "items";
-SET @columnname = "minimum_stock";
+SET @tablename = 'items';
+SET @columnname = 'minimum_stock';
 
 SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  "SELECT 1",
-  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN `", @columnname, "` INTEGER NOT NULL DEFAULT 0 AFTER `asset_id`")
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE table_name = @tablename AND table_schema = @dbname AND column_name = @columnname) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @tablename, '` ADD COLUMN `', @columnname, '` INT NOT NULL DEFAULT 0 AFTER `asset_id`')
 ));
 PREPARE alterIfNotExists FROM @preparedStatement;
 EXECUTE alterIfNotExists;
 DEALLOCATE PREPARE alterIfNotExists;
 
--- Test data: set a minimum stock of 5 for the test items
-UPDATE `items` SET `minimum_stock` = 5 WHERE `name` LIKE '%Test Min Stock A%';
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE table_schema = DATABASE() AND table_name = 'items' AND column_name = 'minimum_stock';
 
--- Verification
-SELECT `name`, `minimum_stock` FROM `items` WHERE `name` LIKE '%Test Min Stock A%';
+-- Rollback (manual, only if needed): ALTER TABLE items DROP COLUMN minimum_stock

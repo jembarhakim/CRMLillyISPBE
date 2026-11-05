@@ -57,6 +57,25 @@ func (h *Handler) ListDevices(c *fiber.Ctx) error {
 	return helpers.ResponseUtils(c, fiber.StatusOK, true, "The Dude devices loaded", devices)
 }
 
+func (h *Handler) StartPingAll(c *fiber.Ctx) error {
+	job, err := h.service.StartPingAll()
+	if errors.Is(err, ErrNoPingTargets) {
+		return helpers.ResponseUtils(c, fiber.StatusConflict, false, err.Error(), nil)
+	}
+	if errors.Is(err, ErrPingAlreadyRunning) {
+		return helpers.ResponseUtils(c, fiber.StatusConflict, false, err.Error(), job)
+	}
+	if err != nil {
+		log.Printf("[dude-ping] failed to start ping-all job: %v", err)
+		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, "Failed to start ping-all job", nil)
+	}
+	return helpers.ResponseUtils(c, fiber.StatusAccepted, true, "Ping-all job started", job)
+}
+
+func (h *Handler) PingAllStatus(c *fiber.Ctx) error {
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "Ping-all job status retrieved", h.service.PingAllStatus())
+}
+
 func (h *Handler) UpdateDeviceDetails(c *fiber.Ctx) error {
 	var details UpdateDeviceDetailsRequest
 	if err := c.BodyParser(&details); err != nil {

@@ -6,7 +6,7 @@ echo ⚠️  WARNING: You are now in PRODUCTION mode!
 echo.
 echo Configuration:
 echo   - Database: localhost on VPS (iqgncnzy_skripsi)
-echo   - MikroTik: 103.148.18.52:8252 (Production)
+echo   - MikroTik: 103.148.18.248:2233 (Production)
 echo   - Port: 3001
 echo.
 echo ⚠️  IMPORTANT: Update YOUR_DB_PASSWORD_HERE in .env before deploying!

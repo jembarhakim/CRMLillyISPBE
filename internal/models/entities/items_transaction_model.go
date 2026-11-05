@@ -7,16 +7,21 @@ import (
 	"gorm.io/gorm"
 )
 
-// ItemsKeluar (Items OUT) - Parent transaction for items going out
+// ItemsKeluar (Items OUT) - Parent transaction for items going out.
+// HolderID is the holder the goods leave from (NULL = main warehouse, which is also what every
+// row written by the legacy POST / endpoint means). TransferRef links the row to its incoming
+// counterpart through a shared 32-char hex id and is NULL when the row is not part of a transfer.
 type ItemsKeluar struct {
-	ID        string              `gorm:"column:id;type:varchar(6);primaryKey" json:"id"`
-	Date      time.Time           `gorm:"column:date;type:date;not null" json:"date"`
-	Notes     *string             `gorm:"column:notes;type:text" json:"notes,omitempty"`
-	CreatedBy string              `gorm:"column:created_by;type:varchar(191);index" json:"created_by"`
-	CreatedAt time.Time           `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time           `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
-	Details   []DetailItemsKeluar `gorm:"foreignKey:IdKeluar;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"details,omitempty"`
-	User      *User               `gorm:"foreignKey:CreatedBy;references:ID" json:"user,omitempty"`
+	ID          string              `gorm:"column:id;type:varchar(6);primaryKey" json:"id"`
+	Date        time.Time           `gorm:"column:date;type:date;not null" json:"date"`
+	Notes       *string             `gorm:"column:notes;type:text" json:"notes,omitempty"`
+	HolderID    *string             `gorm:"column:holder_id;type:varchar(191);index" json:"holder_id,omitempty"`
+	TransferRef *string             `gorm:"column:transfer_ref;type:char(32);index" json:"transfer_ref,omitempty"`
+	CreatedBy   string              `gorm:"column:created_by;type:varchar(191);index" json:"created_by"`
+	CreatedAt   time.Time           `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt   time.Time           `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
+	Details     []DetailItemsKeluar `gorm:"foreignKey:IdKeluar;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"details,omitempty"`
+	User        *User               `gorm:"foreignKey:CreatedBy;references:ID" json:"user,omitempty"`
 }
 
 func (i *ItemsKeluar) TableName() string {
@@ -31,16 +36,21 @@ func (i *ItemsKeluar) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// ItemsMasuk (Items IN) - Parent transaction for items coming in
+// ItemsMasuk (Items IN) - Parent transaction for items coming in.
+// HolderID is the holder that receives the goods (NULL = main warehouse, which is also what every
+// row written by the legacy POST / endpoint means). TransferRef links the row to its outgoing
+// counterpart through a shared 32-char hex id and is NULL when the row is not part of a transfer.
 type ItemsMasuk struct {
-	ID        string             `gorm:"column:id;type:varchar(6);primaryKey" json:"id"`
-	Date      time.Time          `gorm:"column:date;type:date;not null" json:"date"`
-	Notes     *string            `gorm:"column:notes;type:text" json:"notes,omitempty"`
-	CreatedBy string             `gorm:"column:created_by;type:varchar(191);index" json:"created_by"`
-	CreatedAt time.Time          `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time          `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
-	Details   []DetailItemsMasuk `gorm:"foreignKey:IdMasuk;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"details,omitempty"`
-	User      *User              `gorm:"foreignKey:CreatedBy;references:ID" json:"user,omitempty"`
+	ID          string             `gorm:"column:id;type:varchar(6);primaryKey" json:"id"`
+	Date        time.Time          `gorm:"column:date;type:date;not null" json:"date"`
+	Notes       *string            `gorm:"column:notes;type:text" json:"notes,omitempty"`
+	HolderID    *string            `gorm:"column:holder_id;type:varchar(191);index" json:"holder_id,omitempty"`
+	TransferRef *string            `gorm:"column:transfer_ref;type:char(32);index" json:"transfer_ref,omitempty"`
+	CreatedBy   string             `gorm:"column:created_by;type:varchar(191);index" json:"created_by"`
+	CreatedAt   time.Time          `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt   time.Time          `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
+	Details     []DetailItemsMasuk `gorm:"foreignKey:IdMasuk;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"details,omitempty"`
+	User        *User              `gorm:"foreignKey:CreatedBy;references:ID" json:"user,omitempty"`
 }
 
 func (i *ItemsMasuk) TableName() string {
@@ -63,7 +73,7 @@ type Item struct {
 	Category     *string   `gorm:"column:category;type:varchar(100)" json:"category,omitempty"`
 	Description  *string   `gorm:"column:description;type:text" json:"description,omitempty"`
 	AssetID      *string   `gorm:"column:asset_id;type:varchar(191);index" json:"asset_id,omitempty"`
-	MinimumStock int       `gorm:"column:minimum_stock;not null;default:0" json:"minimum_stock"`
+	MinimumStock int       `gorm:"column:minimum_stock;type:int;not null;default:0" json:"minimum_stock"`
 	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"updated_at"`
 

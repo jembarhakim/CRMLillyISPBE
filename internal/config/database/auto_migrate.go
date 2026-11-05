@@ -49,6 +49,10 @@ func AutoMigrate() {
 
 		// Broadcast
 		&entities.BroadcastHistory{},
+		&entities.Notification{},
+		&entities.NotificationLog{},
+		&entities.NotificationTemplate{},
+		&entities.NotificationPreference{},
 
 		// Inventory
 		&entities.Asset{},
