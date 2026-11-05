@@ -114,4 +114,3 @@ func (h ItemHandlerStruct) DeleteItemHandler(c *fiber.Ctx) error {
 
 	return helpers.ResponseUtils(c, fiber.StatusOK, true, "Success delete item", item)
 }
-

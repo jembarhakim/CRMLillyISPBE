@@ -109,5 +109,16 @@ func AutoMigrate() {
 		log.Printf("Failed to migrate The Dude device status table: %v", err)
 	}
 
+	// Additive column migrations for existing tables.
+	// The loop above only creates missing tables, so new columns on pre-existing
+	// tables must be added here (Migrator().AddColumn is a no-op if it exists).
+	if db.Migrator().HasTable(&entities.Item{}) {
+		if !db.Migrator().HasColumn(&entities.Item{}, "MinimumStock") {
+			if err := db.Migrator().AddColumn(&entities.Item{}, "MinimumStock"); err != nil {
+				log.Printf("Failed to add minimum_stock column to items table: %v", err)
+			}
+		}
+	}
+
 	log.Println("Schema verification complete")
 }

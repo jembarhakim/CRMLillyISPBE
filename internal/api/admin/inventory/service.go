@@ -1,9 +1,10 @@
 package inventory
 
 import (
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"skripsi-be/internal/models/entities"
 	"time"
 )
@@ -214,17 +215,26 @@ func (s *InventoryService) GetInventoryStatusService(request InventoryStatusRequ
 
 // generateMACAddress generates a random MAC address for new asset items
 func (s *InventoryService) generateMACAddress() string {
-	// Generate a random MAC address (in production, this should be more sophisticated)
-	rand.Seed(time.Now().UnixNano())
-
+	// Generate a random MAC address using a cryptographically secure source
 	// Common vendor prefixes for network equipment
 	vendorPrefixes := []string{"00:1B:67", "00:0C:29", "00:50:56", "00:1C:42", "00:15:5D"}
-	prefix := vendorPrefixes[rand.Intn(len(vendorPrefixes))]
+	prefix := vendorPrefixes[randomInt(len(vendorPrefixes))]
 
 	// Generate random last 3 octets
-	octet1 := fmt.Sprintf("%02X", rand.Intn(256))
-	octet2 := fmt.Sprintf("%02X", rand.Intn(256))
-	octet3 := fmt.Sprintf("%02X", rand.Intn(256))
+	octet1 := fmt.Sprintf("%02X", randomInt(256))
+	octet2 := fmt.Sprintf("%02X", randomInt(256))
+	octet3 := fmt.Sprintf("%02X", randomInt(256))
 
 	return fmt.Sprintf("%s:%s:%s:%s", prefix, octet1, octet2, octet3)
+}
+
+// randomInt returns a cryptographically secure random int in the range [0, max).
+// It panics if max <= 0 or if the system randomness source fails, since callers
+// rely on unique MAC addresses for new asset items.
+func randomInt(max int) int {
+	n, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate secure random number: %v", err))
+	}
+	return int(n.Int64())
 }

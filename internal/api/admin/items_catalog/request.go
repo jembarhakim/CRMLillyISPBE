@@ -1,11 +1,12 @@
 package items_catalog
 
 type CreateItemRequest struct {
-	Name        string  `json:"name" validate:"required"`
-	DefaultUnit string  `json:"default_unit" validate:"required,oneof=PCS M KG BOX ROLL"`
-	Category    *string `json:"category"`
-	Description *string `json:"description"`
-	AssetID     *string `json:"asset_id"`
+	Name         string  `json:"name" validate:"required"`
+	DefaultUnit  string  `json:"default_unit" validate:"required,oneof=PCS M KG BOX ROLL"`
+	Category     *string `json:"category"`
+	Description  *string `json:"description"`
+	AssetID      *string `json:"asset_id"`
+	MinimumStock *int    `json:"minimum_stock" validate:"omitempty,gte=0"`
 }
 
 type IdItemRequest struct {
