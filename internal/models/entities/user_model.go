@@ -265,10 +265,10 @@ type Customer struct {
 	SalesRepresentative   *User      `gorm:"foreignKey:SalesRepresentativeID" json:"sales_representative"`
 	CompanyID             string `gorm:"column:company_id;type:varchar(191);index:idx_customer_company_id,length:191" json:"company_id"`
 	Company               *Company   `gorm:"foreignKey:CompanyID" json:"company"`
-	ProductID             string     `gorm:"column:product_id;type:varchar(191);index:idx_customer_product_id,length:191" json:"product_id"`
-	Product               *Products  `gorm:"foreignKey:ProductID" json:"product"`
 	IsInternet            string     `gorm:"column:is_internet;default:yes" json:"is_internet"`
 	IsCollaborator        string     `gorm:"column:is_collaborator;default:no" json:"is_collaborator"`
+	OntSerialNumber       *string    `gorm:"column:ont_serial_number;type:varchar(191);index:idx_customer_ont_sn" json:"ont_serial_number"`
+	OntStatus             *OntStatus `gorm:"foreignKey:CustomerID;references:ID" json:"ont_status,omitempty"`
 
 	// One-to-Many relationship with CustomerInstallation
 	InstallationReports []CustomerInstallation `gorm:"foreignKey:CustomerID;references:ID" json:"installation_reports,omitempty"`
