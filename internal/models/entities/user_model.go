@@ -174,7 +174,7 @@ type Asset struct {
 	Description  string             `json:"description"`
 	CreatedAt    time.Time          `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt    time.Time          `json:"updatedAt" gorm:"column:updatedAt;"`
-	ReportAssets *ReportAssets `json:"report_assets" gorm:"foreignKey:ID;constraint:false"`
+	ReportAssets *ReportAssets      `json:"report_assets" gorm:"foreignKey:ID;constraint:false"`
 	AssetItems   []AssetItem        `json:"asset_items,omitempty" gorm:"foreignKey:AssetID;references:ID"`
 	Transactions []AssetTransaction `json:"transactions,omitempty" gorm:"foreignKey:AssetID;references:ID"`
 }
@@ -246,29 +246,30 @@ func (c *Company) BeforeCreate(tx *gorm.DB) error {
 
 // Customer model
 type Customer struct {
-	ID                    string     `json:"id" gorm:"primaryKey"`
-	Address               string     `gorm:"column:address" json:"address"`
-	AreaID                string `gorm:"column:area_id;type:varchar(191);index:idx_customer_area_id,length:191" json:"area_id"`
+	ID                    string     `json:"id" gorm:"primaryKey;type:varchar(191)"`
+	Address               string     `gorm:"column:address;type:varchar(191)" json:"address"`
+	AreaID                string     `gorm:"column:area_id;type:varchar(191);index:idx_customer_area_id,length:191" json:"area_id"`
 	Area                  *Areas     `gorm:"foreignKey:AreaID" json:"area"`
 	Latitude              float64    `gorm:"column:latitude" json:"latitude"`
 	Longitude             float64    `gorm:"column:longitude" json:"longitude"`
-	Name                  string     `gorm:"column:name" json:"name"`
-	Alias                 string     `gorm:"column:alias" json:"alias"`
-	Phone                 string     `gorm:"column:phone" json:"phone"`
-	Password              string     `gorm:"column:password" json:"password"`
+	Name                  string     `gorm:"column:name;type:varchar(191)" json:"name"`
+	Alias                 string     `gorm:"column:alias;type:varchar(191)" json:"alias"`
+	Phone                 string     `gorm:"column:phone;type:varchar(191)" json:"phone"`
+	Password              string     `gorm:"column:password;type:varchar(191)" json:"password"`
 	ServiceRequestDate    string     `gorm:"column:service_request_date;type:date" json:"service_request_date"`
 	CreatedAt             time.Time  `gorm:"column:createdAt;autoCreateTime" json:"created_at"`
 	UpdatedAt             time.Time  `gorm:"column:updatedAt;autoUpdateTime" json:"updated_at"`
 	DeletedAt             *time.Time `gorm:"column:deleted_at" json:"deleted_at,omitempty"`
 	InstallationDate      time.Time  `gorm:"column:installation_date;type:date" json:"installation_date"`
-	SalesRepresentativeID string `gorm:"column:sales_representative_id;type:varchar(191);index:idx_customer_sales_rep_id,length:191" json:"sales_representative_id"`
+	SalesRepresentativeID string     `gorm:"column:sales_representative_id;type:varchar(191);index:idx_customer_sales_rep_id,length:191" json:"sales_representative_id"`
 	SalesRepresentative   *User      `gorm:"foreignKey:SalesRepresentativeID" json:"sales_representative"`
-	CompanyID             string `gorm:"column:company_id;type:varchar(191);index:idx_customer_company_id,length:191" json:"company_id"`
+	CompanyID             string     `gorm:"column:company_id;type:varchar(191);index:idx_customer_company_id,length:191" json:"company_id"`
 	Company               *Company   `gorm:"foreignKey:CompanyID" json:"company"`
 	ProductID             string     `gorm:"column:product_id;type:varchar(191);index:idx_customer_product_id,length:191" json:"product_id"`
 	Product               *Products  `gorm:"foreignKey:ProductID" json:"product"`
 	IsInternet            string     `gorm:"column:is_internet;default:yes" json:"is_internet"`
 	IsCollaborator        string     `gorm:"column:is_collaborator;default:no" json:"is_collaborator"`
+	OntSerialNumber       *string    `gorm:"column:ont_serial_number;type:varchar(191);index:idx_customer_ont_sn" json:"ont_serial_number,omitempty"`
 
 	// One-to-Many relationship with CustomerInstallation
 	InstallationReports []CustomerInstallation `gorm:"foreignKey:CustomerID;references:ID" json:"installation_reports,omitempty"`
@@ -354,7 +355,7 @@ type ReportAssets struct {
 	Quantity    int64     `json:"quantity"` // BigInt mapped to int64
 	CreatedAt   time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	UpdatedAt   time.Time `json:"updatedAt"`
-	Assets []Asset `json:"assets" gorm:"foreignKey:ID;constraint:false"`
+	Assets      []Asset   `json:"assets" gorm:"foreignKey:ID;constraint:false"`
 }
 
 // ReportCash model
@@ -440,7 +441,7 @@ type User struct {
 	Password  string    `json:"password"`
 	RoleId    string    `gorm:"column:role_id;type:varchar(191);index:idx_users_role_id,length:191"`
 	Role      Role      `gorm:"foreignKey:RoleId"`
-	Token     string    `json:"token" gorm:"default:null"`
+	Token     string    `json:"token" gorm:"type:text;default:null"`
 	Phone     string    `json:"phone"`
 	CreatedAt time.Time `json:"createdAt" gorm:"default:CURRENT_TIMESTAMP(3); column:createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt"`
@@ -614,7 +615,7 @@ func (f *Feature) BeforeCreate(tx *gorm.DB) error {
 // RolePermission model
 type RolePermission struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
-	RoleID string `json:"role_id" gorm:"column:role_id;type:varchar(191);index:idx_role_permissions_role_id,length:191"`
+	RoleID    string    `json:"role_id" gorm:"column:role_id;type:varchar(191);index:idx_role_permissions_role_id,length:191"`
 	FeatureID string    `json:"feature_id" gorm:"column:feature_id;type:varchar(191)"`
 	CanAccess int       `json:"can_access" gorm:"column:can_access"`
 	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;default:CURRENT_TIMESTAMP(3)"`
@@ -634,15 +635,15 @@ func (rp *RolePermission) BeforeCreate(tx *gorm.DB) error {
 
 // InstallationHistory model for tracking deleted installation reports
 type InstallationHistory struct {
-	ID                string                `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
-	InstallationID    string                `gorm:"column:installation_id;type:varchar(191);not null;index:idx_installation_history_installation_id" json:"installation_id"`
-	OldIP             *string               `gorm:"column:old_ip;type:varchar(191);default:null" json:"old_ip,omitempty"`
-	OldMac            *string               `gorm:"column:old_mac;type:varchar(191);default:null" json:"old_mac,omitempty"`
-	ChangeReason      string                `gorm:"column:change_reason;type:enum('router_broken','upgrade','terminated');default:'terminated'" json:"change_reason"`
-	TicketID          uint                  `gorm:"column:ticket_id;not null" json:"ticket_id"`
-	CreatedAt         time.Time             `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
-	Installation      *CustomerInstallation `gorm:"foreignKey:InstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"installation,omitempty"`
-	TroubleTicket     *TroubleTicket        `gorm:"foreignKey:TicketID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"trouble_ticket,omitempty"`
+	ID             string                `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	InstallationID string                `gorm:"column:installation_id;type:varchar(191);not null;index:idx_installation_history_installation_id" json:"installation_id"`
+	OldIP          *string               `gorm:"column:old_ip;type:varchar(191);default:null" json:"old_ip,omitempty"`
+	OldMac         *string               `gorm:"column:old_mac;type:varchar(191);default:null" json:"old_mac,omitempty"`
+	ChangeReason   string                `gorm:"column:change_reason;type:enum('router_broken','upgrade','terminated');default:'terminated'" json:"change_reason"`
+	TicketID       uint                  `gorm:"column:ticket_id;not null" json:"ticket_id"`
+	CreatedAt      time.Time             `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP(3)" json:"created_at"`
+	Installation   *CustomerInstallation `gorm:"foreignKey:InstallationID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"installation,omitempty"`
+	TroubleTicket  *TroubleTicket        `gorm:"foreignKey:TicketID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE" json:"trouble_ticket,omitempty"`
 }
 
 func (i *InstallationHistory) TableName() string {
