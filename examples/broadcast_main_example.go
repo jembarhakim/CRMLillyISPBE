@@ -7,8 +7,8 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
-	"crm-be/internal/api/broadcast"
-	"crm-be/internal/models/entities"
+	"skripsi-be/internal/api/broadcast"
+	"skripsi-be/internal/models/entities"
 )
 
 func main() {

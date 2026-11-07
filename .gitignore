@@ -2,6 +2,22 @@ node_modules/
 whatsapp-session/
 *.log
 .env
-.env
 uploads/
 !uploads/.gitkeep  # (Optional: keeps the folder structure but ignores files)
+
+# Compiled Binaries & Executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+myapp
+myapp.exe
+main
+main.exe
+backend-app
+temp-build
+temp_build
+cmd/myapp/main
+cmd/myapp/myapp.exe
+cpanel-backend-deploy/backend-app
