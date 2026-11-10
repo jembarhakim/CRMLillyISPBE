@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -113,10 +114,32 @@ func VerifyToken(c *fiber.Ctx) error {
 		return ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token (not valid)", nil)
 	}
 
+	// Customer tokens must never be accepted by staff/admin routes.
+	// They are issued separately (role "CUSTOMER") and are only valid for
+	// /api/customer/* and /api/auth/verify-customer.
+	//
+	// A browser that still holds an old customer token while showing the staff
+	// dashboard lands here. The message is actionable on purpose: the frontend
+	// uses it to clear the stale session and send the user back to /employee.
+	if IsCustomerRole(claims.Audience[0]) {
+		slog.Warn("customer token used on staff route",
+			"path", c.Path(),
+			"audience", claims.Audience[0],
+			"subject", claims.Subject,
+		)
+		return ResponseUtils(c, fiber.StatusForbidden, false,
+			"Customer token cannot access this resource: sesi portal pelanggan masih aktif. Silakan login ulang sebagai staf.", nil)
+	}
+
 	c.Locals("user_id", claims.Subject)
 	c.Locals("role", claims.Audience[0])
 
 	return c.Next()
+}
+
+// IsCustomerRole reports whether the JWT audience belongs to a customer token.
+func IsCustomerRole(role string) bool {
+	return NormalizeRole(strings.TrimSpace(role)) == "CUSTOMER"
 }
 
 func CustomerVerifyToken(c *fiber.Ctx) error {
@@ -141,8 +164,14 @@ func CustomerVerifyToken(c *fiber.Ctx) error {
 		return ResponseUtils(c, fiber.StatusUnauthorized, false, "Invalid Token", nil)
 	}
 
+	// Enforce the split between customer and staff tokens.
+	if !IsCustomerRole(claims.Audience[0]) {
+		return ResponseUtils(c, fiber.StatusForbidden, false, "This token is not a customer token", nil)
+	}
+
 	c.Locals("user_id", claims.Subject)
-	c.Locals("role", claims.Audience[0])
+	c.Locals("role", "CUSTOMER")
+	c.Locals("customer_id", claims.Subject)
 	return c.Next()
 }
 

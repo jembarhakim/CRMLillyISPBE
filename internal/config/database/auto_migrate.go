@@ -30,6 +30,7 @@ func AutoMigrate() {
 		&entities.Customer{},
 		&entities.CustomerInstallation{},
 		&entities.CustomerService{},
+		&entities.CustomerServiceRequest{},
 
 		// Invoice
 		&entities.Invoice{},
@@ -77,6 +78,16 @@ func AutoMigrate() {
 		&entities.RecurringInvoice{},
 		&entities.RecurringInvoiceItem{},
 		&entities.RecurringInvoiceHistory{},
+
+		// B2B Incidental Project (Sprint 6)
+		&entities.B2BProject{},
+		&entities.B2BProjectStatusLog{},
+		&entities.B2BProjectMilestone{},
+		&entities.B2BQuotation{},
+		&entities.B2BQuotationItem{},
+		&entities.B2BProjectExpense{},
+		&entities.B2BProjectWorkOrder{},
+		&entities.B2BProjectBast{},
 
 		// Netwatch
 		&entities.NetwatchDevice{},

@@ -531,16 +531,19 @@ type InvoiceStatus string
 
 // Constants for TransactionsTypeInOut
 const (
-	InvoiceStatusPaid    InvoiceStatus = "paid"
-	InvoiceStatusUnpaid  InvoiceStatus = "unpaid"
-	InvoiceStatusPending InvoiceStatus = "pending"
+	InvoiceStatusPaid          InvoiceStatus = "paid"
+	InvoiceStatusUnpaid        InvoiceStatus = "unpaid"
+	InvoiceStatusPending       InvoiceStatus = "pending"
+	InvoiceStatusPartiallyPaid InvoiceStatus = "partially_paid"
 )
 
 type Invoice struct {
-	ID            string                  `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
-	Amount        int64                   `gorm:"column:amount;type:int;not null" json:"amount"`
-	CustomerID    string                  `gorm:"column:customer_id;type:varchar(191);not null" json:"customer_id"`
-	Customer      Customer                `gorm:"foreignKey:CustomerID;references:id;constraint:OnUpdate:RESTRICT" json:"customer"`
+	ID         string    `gorm:"column:id;type:varchar(191);primaryKey" json:"id"`
+	Amount     int64     `gorm:"column:amount;type:int;not null" json:"amount"`
+	CustomerID *string   `gorm:"column:customer_id;type:varchar(191);index:idx_invoices_customer" json:"customer_id"`
+	Customer   *Customer `gorm:"foreignKey:CustomerID;references:id;constraint:OnDelete:SET NULL" json:"customer,omitempty"`
+	// ProjectID links a B2B invoice to its project. Null for retail invoices.
+	ProjectID     *string                 `gorm:"column:project_id;type:varchar(191);index:idx_invoices_project" json:"project_id,omitempty"`
 	Link          string                  `gorm:"column:link;type:varchar(191);not null" json:"link"`
 	Status        InvoiceStatus           `gorm:"column:status;type:varchar(191);not null" json:"status"`
 	InvoiceDate   *time.Time              `gorm:"column:invoice_date;type:date" json:"invoice_date"`

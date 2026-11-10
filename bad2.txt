@@ -1,0 +1,8 @@
+﻿L272 : 			log.Printf("[mikrotik] skip: customer=%s is collaborator-only (not internet), skipping MikroTik hotspot binding for invoice %s", custID(custID(inv.CustomerID)), inv.ID)
+L287 : 		log.Printf("[mikrotik] applying status=%s to %d device(s) for customer=%s invoice=%s", string(inv.Status), len(devices), custID(custID(inv.CustomerID)), inv.ID)
+L335 : 			name := r.generateSchedulerName(custID(custID(completeInvoice.CustomerID)), completeInvoice.Customer.Name)
+L363 : 				log.Printf("[mikrotik] scheduler: skip - customer=%s is collaborator-only (not internet), invoice=%s", custID(custID(inv.CustomerID)), inv.ID)
+L380 : 				log.Printf("[mikrotik] scheduler: no MAC found for customer=%s invoice=%s", custID(custID(inv.CustomerID)), inv.ID)
+L386 : 			schedulerName := r.generateSchedulerName(custID(custID(inv.CustomerID)), inv.Customer.Name)
+L733 : 	schedulerName := r.generateSchedulerName(custID(custID(invoice.CustomerID)), invoice.Customer.Name)
+L1005 : 	schedulerName := r.generateSchedulerName(custID(custID(invoice.CustomerID)), invoice.Customer.Name)

@@ -1,0 +1,5 @@
+﻿=== Create invoice di modul b2b? ===
+internal\api\admin\b2b_project\handler.go:L233: m, err := h.service.IssueMilestoneInvoice(c.Params("milestoneId"))
+internal\api\admin\b2b_project\repository.go:L241: // Only allowed while no term has been invoiced yet.
+internal\api\admin\b2b_project\service.go:L33: IssueMilestoneInvoice(milestoneID string) (*entities.B2BProjectMilestone, error)
+=== IssueMilestoneInvoice body ===

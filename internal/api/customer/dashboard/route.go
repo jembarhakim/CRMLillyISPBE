@@ -20,4 +20,9 @@ func CustomerDashboardRoute(app fiber.Router) {
 	app.Get("/device-status", helpers.CustomerVerifyToken, handler.CheckDeviceStatus)
 	app.Get("/products", helpers.CustomerVerifyToken, handler.GetAvailableProducts)
 	app.Get("/test", handler.TestEndpoint)
+
+	// Billing: monthly bill table, Midtrans Snap token and PDF source data.
+	app.Get("/bills", helpers.CustomerVerifyToken, handler.MyBills)
+	app.Post("/payment/snap", helpers.CustomerVerifyToken, handler.CreateSnapToken)
+	app.Get("/invoice/:id", helpers.CustomerVerifyToken, handler.MyInvoiceDetail)
 }

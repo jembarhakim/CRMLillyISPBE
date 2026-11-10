@@ -48,6 +48,49 @@ func (db *AuthRepositoryStruct) GetPhoneCustomerAuthRepository(LoginRequest Logi
 	return user, nil
 }
 
+// GetCustomerByPhoneVariants looks a customer up by any of the phone
+// representations produced by phoneVariants (62xxx / 0xxx / +62xxx).
+// It also tolerates formatting characters stored in the phone column.
+func (db *AuthRepositoryStruct) GetCustomerByPhoneVariants(variants []string) (*entities.Customer, error) {
+	if len(variants) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	user := &entities.Customer{}
+
+	// Primary lookup: exact match on any stored representation.
+	if err := db.DB.First(user, "phone IN ?", variants).Error; err == nil {
+		return user, nil
+	} else if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	// Fallback: phone numbers stored with spaces/dashes. Compare digits only.
+	for _, variant := range variants {
+		err := db.DB.
+			Where("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') = ?", variant).
+			First(user).Error
+		if err == nil {
+			return user, nil
+		}
+		if err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
+	}
+
+	return nil, gorm.ErrRecordNotFound
+}
+
+// UpdateTokenCustomerByID stores the issued JWT on the customer row so the
+// token can be revoked/inspected later (mirrors UpdateTokenUserByID).
+func (db *AuthRepositoryStruct) UpdateTokenCustomerByID(id string, token string) (*entities.Customer, error) {
+	customer := &entities.Customer{}
+	if err := db.DB.First(customer, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return customer, nil
+}
+
 func (db *AuthRepositoryStruct) GetTokenAuthRepository(token string) (*entities.User, error) {
 	// Implement the logic to get a user by ID from the database
 

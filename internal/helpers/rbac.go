@@ -18,6 +18,7 @@ var roleMapping = map[string]string{
 	"TECHNICIAN":       "TECHNICIAN",
 	"FINANCE":          "FINANCE",
 	"SIDEKEEPER":       "SIDEKEEPER",
+	"CUSTOMER":         "CUSTOMER", // customer portal token (never allowed on /api/admin/*)
 }
 
 func NormalizeRole(role string) string {

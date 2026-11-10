@@ -297,46 +297,72 @@ func seedCustomers(
     areas map[string]entities.Areas,
     products map[string]entities.Products,
 ) []entities.Customer {
+	// All seeded customers share one development password, matching seedUsers.
+	// Without it no seeded customer can authenticate via login-customer.
+	hashedCustomerPassword, hashErr := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
+	if hashErr != nil {
+		log.Fatal("Error hashing customer password:", hashErr)
+	}
+	customerPassword := string(hashedCustomerPassword)
+
 	customers := []entities.Customer{
 		{
-			Name:      "PT Maju Bersama",
-			Phone:     "021-5550123",
-			Address:   "Jl. Sudirman No. 123, Jakarta Pusat",
+			// Individual retail customer, handy for manual smoke tests:
+			//   phone 081234567899 / password "password"
+			Name:     "Budi Santoso",
+			Phone:    "081234567899",
+			Password: customerPassword,
+			Address:  "Jl. Melati No. 10, Malang",
 			CompanyID: companies["PT Maju Bersama"].ID,
 			AreaID:    areas["Jakarta Pusat"].ID,
 			ProductID: products["Internet 100 Mbps"].ID,
 			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
-		    ServiceRequestDate: "2026-08-06",
+			ServiceRequestDate: "2026-08-06",
+			Latitude:  -7.9828,
+			Longitude: 112.6303,
+		},
+		{
+			Name:     "PT Maju Bersama",
+			Phone:    "021-5550123",
+			Password: customerPassword,
+			Address:  "Jl. Sudirman No. 123, Jakarta Pusat",
+			CompanyID: companies["PT Maju Bersama"].ID,
+			AreaID:    areas["Jakarta Pusat"].ID,
+			ProductID: products["Internet 100 Mbps"].ID,
+			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
+			ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.2088,
 			Longitude: 106.8456,
 		},
 		{
-			Name:      "CV Sukses Mandiri",
-			Phone:     "021-5550456",
-			Address:   "Jl. Thamrin No. 45, Jakarta Pusat",
+			Name:     "CV Sukses Mandiri",
+			Phone:    "021-5550456",
+			Password: customerPassword,
+			Address:  "Jl. Thamrin No. 45, Jakarta Pusat",
 			CompanyID: companies["CV Sukses Mandiri"].ID,
 			AreaID:    areas["Jakarta Pusat"].ID,
 			ProductID: products["Internet 50 Mbps"].ID,
 			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
-		    ServiceRequestDate: "2026-08-06",
+			ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.1865,
 			Longitude: 106.8222,
 		},
 		{
-			Name:      "UD Makmur Jaya",
-			Phone:     "021-5550789",
-			Address:   "Jl. Gatot Subroto No. 67, Jakarta Selatan",
+			Name:     "UD Makmur Jaya",
+			Phone:    "021-5550789",
+			Password: customerPassword,
+			Address:  "Jl. Gatot Subroto No. 67, Jakarta Selatan",
 			CompanyID: companies["UD Makmur Jaya"].ID,
 			AreaID:    areas["Jakarta Selatan"].ID,
 			ProductID: products["Internet 25 Mbps"].ID,
 			SalesRepresentativeID: users["admin@lillyisp.com"].ID,
-		    ServiceRequestDate: "2026-08-06",
+			ServiceRequestDate: "2026-08-06",
 			Latitude:  -6.2088,
 			Longitude: 106.8233,
 		},
 	}
 
-	var createdCustomers []entities.Customer
+var createdCustomers []entities.Customer
 	for _, customer := range customers {
 		var existingCustomer entities.Customer
 

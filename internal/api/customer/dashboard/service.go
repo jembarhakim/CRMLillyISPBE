@@ -12,6 +12,19 @@ type CustomerDashboardServiceInterface interface {
 	CreatePaymentCustomerDashboard(request SearchInvoice) (midtrans.MidtransResponsePaymentLink, error)
 	CheckDeviceStatus(customerID string) (string, error)
 	GetAvailableProducts() ([]entities.Products, error)
+	GetCustomerBills(customerID string) ([]CustomerBillItem, error)
+	GetCustomerInvoiceForPDF(customerID string, invoiceID string) (entities.Invoice, error)
+	CreateCustomerSnapToken(customerID string, invoiceID string) (CustomerSnapToken, error)
+}
+
+// CustomerSnapToken is the payload used by the portal to open the Midtrans
+// Snap popup (QRIS / VA / e-wallet) without leaving the page.
+type CustomerSnapToken struct {
+	InvoiceID   string `json:"invoice_id"`
+	Token       string `json:"token"`
+	RedirectURL string `json:"redirect_url"`
+	Amount      int64  `json:"amount"`
+	ExpiresIn   int    `json:"expires_in"` // seconds the popup stays valid
 }
 
 type CustomerDashboardServiceStruct struct {
@@ -160,4 +173,119 @@ func (s CustomerDashboardServiceStruct) GetAvailableProducts() ([]entities.Produ
 
 	fmt.Printf("CustomerDashboard - Found %d available products\n", len(products))
 	return products, nil
+}
+
+// monthNames maps time.Month to Indonesian month names used on the bill table.
+var monthNames = [...]string{
+	"Januari", "Februari", "Maret", "April", "Mei", "Juni",
+	"Juli", "Agustus", "September", "Oktober", "November", "Desember",
+}
+
+// invoiceStatusLabel converts the raw invoice status into a label that is
+// friendly for non technical customers.
+func invoiceStatusLabel(status entities.InvoiceStatus) string {
+	switch status {
+	case entities.InvoiceStatusPaid:
+		return "Lunas"
+	case entities.InvoiceStatusPending:
+		return "Pending"
+	default:
+		return "Belum Bayar"
+	}
+}
+
+// toCustomerBillItem converts an invoice row into a table row for the portal.
+func toCustomerBillItem(invoice entities.Invoice, index int) CustomerBillItem {
+	// Prefer invoice_date, then due_date, then created_at for the period.
+	period := invoice.CreatedAt
+	if invoice.InvoiceDate != nil {
+		period = *invoice.InvoiceDate
+	} else if invoice.DueDate != nil {
+		period = *invoice.DueDate
+	}
+
+	item := CustomerBillItem{
+		InvoiceID:     invoice.ID,
+		InvoiceNumber: fmt.Sprintf("INV-%03d", index+1),
+		Month:         fmt.Sprintf("%s %d", monthNames[int(period.Month())-1], period.Year()),
+		MonthSort:     period.Format("2006-01"),
+		Amount:        invoice.Amount,
+		Status:        string(invoice.Status),
+		StatusLabel:   invoiceStatusLabel(invoice.Status),
+		InvoiceDate:   period.Format("2006-01-02"),
+		IsPayable:     invoice.Status != entities.InvoiceStatusPaid,
+		RedirectURL:   invoice.Link,
+		PdfViewed:     invoice.PdfViewed,
+	}
+	if invoice.DueDate != nil {
+		item.DueDate = invoice.DueDate.Format("2006-01-02")
+	}
+	return item
+}
+
+// GetCustomerBills returns the monthly bill list shown on the customer portal.
+// Invoices are ordered from the most recent billing period to the oldest.
+func (s CustomerDashboardServiceStruct) GetCustomerBills(customerID string) ([]CustomerBillItem, error) {
+	invoices, err := s.repository.MyInvoiceCustomerDashboard(customerID)
+	if err != nil {
+		return nil, err
+	}
+
+	bills := make([]CustomerBillItem, 0, len(invoices))
+	for i, invoice := range invoices {
+		bills = append(bills, toCustomerBillItem(invoice, i))
+	}
+	return bills, nil
+}
+
+// GetCustomerInvoiceForPDF returns one invoice owned by the customer so the
+// portal can render the official receipt/invoice as a PDF client side.
+func (s CustomerDashboardServiceStruct) GetCustomerInvoiceForPDF(customerID string, invoiceID string) (entities.Invoice, error) {
+	if invoiceID == "" {
+		return entities.Invoice{}, fmt.Errorf("invoice id is required")
+	}
+	return s.repository.MyInvoiceDetailCustomerDashboard(customerID, invoiceID)
+}
+
+// CreateCustomerSnapToken creates (or refreshes) a Midtrans Snap token for one
+// invoice that belongs to the customer. The customer_id filter inside the
+// repository makes sure a customer cannot pay/steal another customer's invoice.
+func (s CustomerDashboardServiceStruct) CreateCustomerSnapToken(customerID string, invoiceID string) (CustomerSnapToken, error) {
+	result := CustomerSnapToken{InvoiceID: invoiceID}
+
+	invoice, err := s.repository.MyInvoiceIdCustomerDashboard(SearchInvoice{
+		idUser:    idUser{UserId: customerID},
+		InvoiceId: invoiceID,
+	})
+	if err != nil {
+		return result, err
+	}
+
+	if invoice.Status == entities.InvoiceStatusPaid {
+		return result, fmt.Errorf("tagihan ini sudah lunas")
+	}
+
+	link, err := midtrans.CreatePaymentLink(midtrans.MidtransCreatePaymentLink{
+		OrderID:     invoice.ID,
+		GrossAmount: invoice.Amount,
+	})
+	if err != nil {
+		return result, err
+	}
+
+	// Persist the link and mark the invoice as pending payment so the admin
+	// dashboard sees the same state as before.
+	if _, err := s.repository.MyInvoiceUpdatePaymentCustomerDashboard(SearchInvoice{
+		idUser:    idUser{UserId: customerID},
+		InvoiceId: invoiceID,
+	}, link.RedirectURL); err != nil {
+		return result, err
+	}
+
+	result.Token = link.Token
+	result.RedirectURL = link.RedirectURL
+	result.Amount = invoice.Amount
+	result.ExpiresIn = 24 * 60 * 60
+
+	return result, nil
 }

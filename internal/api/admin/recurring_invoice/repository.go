@@ -15,6 +15,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// custID dereferences a nullable customer id ("" when nil).
+func custID(id *string) string {
+	if id == nil {
+		return ""
+	}
+	return *id
+}
+
+// strPtr wraps a string into a pointer, or returns nil when empty.
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 type AdminRecurringInvoiceRepositoryInterface interface {
 	FindAllRecurringInvoices() ([]entities.RecurringInvoice, error)
 	FindRecurringInvoiceByID(request IdRecurringInvoiceRequest) (entities.RecurringInvoice, error)
@@ -297,7 +313,7 @@ func (r AdminRecurringInvoiceRepositoryStruct) GenerateInvoiceFromRecurring(requ
 				// No existing unpaid/pending invoice found - this is normal, create new one
 				log.Printf("[recurring-gen] no existing unpaid invoice found for customer=%s, creating new invoice", recurringInvoice.CustomerID)
 				inv = entities.Invoice{
-					CustomerID:  recurringInvoice.CustomerID,
+					CustomerID:  strPtr(recurringInvoice.CustomerID),
 					Amount:      0,
 					Link:        fmt.Sprintf("/invoice/%s", recurringInvoice.ID),
 					Status:      entities.InvoiceStatusUnpaid,

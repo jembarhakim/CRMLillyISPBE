@@ -21,6 +21,7 @@ type CustomerDashboardRepositoryInterface interface {
 	CheckDeviceStatus(macAddress string) (string, error)
 	GetCustomerWithProduct(customerID string) (entities.Customer, error)
 	GetAvailableProducts() ([]entities.Products, error)
+	MyInvoiceDetailCustomerDashboard(customerID string, invoiceID string) (entities.Invoice, error)
 }
 
 type CustomerDashboardRepositoryStruct struct {
@@ -190,4 +191,20 @@ func (r CustomerDashboardRepositoryStruct) GetAvailableProducts() ([]entities.Pr
 
 	fmt.Printf("GetAvailableProducts - Found %d products\n", len(products))
 	return products, nil
+}
+
+// MyInvoiceDetailCustomerDashboard returns a single invoice (with items)
+// belonging to the customer. The customer_id filter is what prevents a
+// customer from reading somebody else's invoice by guessing an id.
+func (r CustomerDashboardRepositoryStruct) MyInvoiceDetailCustomerDashboard(customerID string, invoiceID string) (entities.Invoice, error) {
+	invoice := entities.Invoice{}
+	err := r.db.
+		Preload("InvoiceItems").
+		Preload("Customer").
+		Where("customer_id = ? AND id = ?", customerID, invoiceID).
+		First(&invoice).Error
+	if err != nil {
+		return invoice, err
+	}
+	return invoice, nil
 }

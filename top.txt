@@ -1,0 +1,14 @@
+﻿=== internal\api\admin\recurring_invoice\repository.go ===
+1 |// custID dereferences a nullable customer id ("" when nil).|
+2 |func custID(id *string) string {|
+3 |	if id == nil {|
+4 |		return ""|
+5 |	}|
+6 |	return *id|
+=== internal\api\admin\b2b_project\repository.go ===
+1 |// custID dereferences a nullable customer id ("" when nil).|
+2 |func custID(id *string) string {|
+3 |	if id == nil {|
+4 |		return ""|
+5 |	}|
+6 |	return *id|

@@ -1,0 +1,51 @@
+﻿=== IssueMilestoneInvoice/service ===
+	if m.Status == entities.B2BMilestonePaid {
+		return nil, fmt.Errorf("termin sudah lunas")
+	}
+
+	m.Status = entities.B2BMilestonePaid
+	m.PaidAt = nowPtr()
+	if m.InvoiceNumber == "" {
+		m.InvoiceNumber = fmt.Sprintf("PAID/%d", time.Now().Unix()%100000)
+	}
+
+	if err := s.repo.SaveMilestone(m); err != nil {
+		return nil, err
+	}
+
+	// Auto-advance the project when the last term is settled.
+	if paidAll, err := s.repo.AllMilestonesPaid(m.ProjectID); err == nil && paidAll {
+		if project, err := s.repo.GetProject(m.ProjectID); err == nil {
+			if project.Status != entities.B2BStatusPelunasan {
+				previous := project.Status
+				project.Status = entities.B2BStatusPelunasan
+				_ = s.repo.SaveProject(project)
+				_ = s.repo.AddStatusLog(&entities.B2BProjectStatusLog{
+					ProjectID:  project.ID,
+					FromStatus: previous,
+					ToStatus:   entities.B2BStatusPelunasan,
+					Note:       "Seluruh termin telah lunas",
+				})
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// ---------------------------------------------------------------------------
+// Expense & margin tracker
+// ---------------------------------------------------------------------------
+
+func (s *Service) ListExpenses(projectID string) ([]entities.B2BProjectExpense, error) {
+	return s.repo.ListExpenses(projectID)
+}
+
+// CreateExpense records a field cost and mirrors it into the company cash-out
+// ledger (`transactions`) so the finance report stays the single source of truth.
+func (s *Service) CreateExpense(projectID string, req CreateExpenseRequest, actor string) (*entities.B2BProjectExpense, error) {
+	project, err := s.repo.GetProject(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("proyek tidak ditemukan")
+	}
+

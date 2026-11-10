@@ -135,7 +135,7 @@ func (r AdminInvoiceRepositoryStruct) CreateAdminInvoiceRepository(request Creat
 	}
 
 	invoice := entities.Invoice{
-		CustomerID: request.CustomerID,
+		CustomerID: &request.CustomerID,
 		Amount:     request.Amount,
 		Status:     status,
 	}
@@ -316,7 +316,7 @@ func (r AdminInvoiceRepositoryStruct) CreateAdminInvoiceRepository(request Creat
 	} else {
 		svc := services.GetSharedMikroTikService()
 		if completeInvoice.Status == entities.InvoiceStatusUnpaid && completeInvoice.DueDate != nil && svc != nil && svc.IsConnected() {
-			name := r.generateSchedulerName(completeInvoice.CustomerID, completeInvoice.Customer.Name)
+			name := r.generateSchedulerName(*completeInvoice.CustomerID, completeInvoice.Customer.Name)
 			checkCmd := fmt.Sprintf("/system scheduler print count-only where name=\"%s\"", name)
 			if out, e := svc.ExecuteCommand(checkCmd); e == nil {
 				if strings.TrimSpace(out) == "0" {
@@ -367,10 +367,10 @@ func (r AdminInvoiceRepositoryStruct) CreateAdminInvoiceRepository(request Creat
 			mac := strings.TrimSpace(*dev[0].MacAddress)
 
 			// Generate scheduler name in format "Area - Customer Name"
-			schedulerName := r.generateSchedulerName(inv.CustomerID, inv.Customer.Name)
+			schedulerName := r.generateSchedulerName(*inv.CustomerID, inv.Customer.Name)
 			customerName := inv.Customer.Name
 			if customerName == "" {
-				customerName = inv.CustomerID
+				customerName = *inv.CustomerID
 			}
 			// Match script name with scheduler naming to keep things consistent on MikroTik
 			// Result: open_<CodeName - Customer Name>
@@ -672,11 +672,7 @@ func (r AdminInvoiceRepositoryStruct) UpdateStatusAdminInvoiceRepository(request
 		}
 	}
 	if request.Status == "paid" {
-		go r.enforceMikroTikForPaidInvoice(invoice)
-		// For PAID, still ensure scheduler start-date gets updated to the invoice due_date
-		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionSetUnpaidScheduler, 0)
-		// Also run customer-specific open_ script
-		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionRunOpenScript, 0)
+		EnqueuePaidInvoiceActions(r.db, invoice)
 	} else if request.Status == "unpaid" {
 		// Enqueue unpaid scheduler update instead of synchronous call
 		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionSetUnpaidScheduler, 0)
@@ -692,6 +688,25 @@ func (r AdminInvoiceRepositoryStruct) UpdateStatusAdminInvoiceRepository(request
 	}
 
 	return invoice, nil
+}
+
+func EnqueuePaidInvoiceActions(db *gorm.DB, invoice entities.Invoice) {
+	var invoiceWithCustomer entities.Invoice
+	if err := db.Preload("Customer").Preload("Customer.Area").First(&invoiceWithCustomer, "id = ?", invoice.ID).Error; err != nil {
+		log.Printf("[invoice-paid] failed to load invoice %s for MikroTik enforcement: %v", invoice.ID, err)
+	} else if invoiceWithCustomer.Customer != nil {
+		repository := NewAdminInvoiceRepository(db)
+		go repository.enforceMikroTikForPaidInvoice(invoiceWithCustomer)
+	}
+
+	for _, action := range []services.RouterAction{
+		services.RouterActionSetUnpaidScheduler,
+		services.RouterActionRunOpenScript,
+	} {
+		if _, err := services.EnqueueRouterJob(db, invoice.ID, action, 0); err != nil {
+			log.Printf("[invoice-paid] failed to enqueue action %s for invoice %s: %v", action, invoice.ID, err)
+		}
+	}
 }
 
 // runOpenScriptForInvoice executes RouterOS script named "open_<Code - Customer>"
@@ -714,7 +729,7 @@ func (r AdminInvoiceRepositoryStruct) runOpenScriptForInvoice(invoice entities.I
 		return
 	}
 	// Build script name from code_name - customer name
-	schedulerName := r.generateSchedulerName(invoice.CustomerID, invoice.Customer.Name)
+	schedulerName := r.generateSchedulerName(*invoice.CustomerID, invoice.Customer.Name)
 	scriptName := "open_" + schedulerName
 	// Verify the script exists (exact name)
 	check := fmt.Sprintf("/system script print count-only where name=\"%s\"", scriptName)
@@ -986,7 +1001,7 @@ func (r AdminInvoiceRepositoryStruct) setTLSKSchedulerForUnpaidInvoice(invoice e
 	}
 
 	// Generate scheduler name in format "Area - Customer Name"
-	schedulerName := r.generateSchedulerName(invoice.CustomerID, invoice.Customer.Name)
+	schedulerName := r.generateSchedulerName(*invoice.CustomerID, invoice.Customer.Name)
 
 	// Pre-check existence of the target scheduler; RouterOS may accept set with empty find silently
 	checkCmd := fmt.Sprintf("/system scheduler print count-only where name=\"%s\"", schedulerName)

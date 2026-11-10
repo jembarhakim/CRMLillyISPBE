@@ -7,6 +7,7 @@ import (
 	"skripsi-be/internal/api/admin/asset"
 	assetitem "skripsi-be/internal/api/admin/asset_item"
 	assettransaction "skripsi-be/internal/api/admin/asset_transaction"
+	b2bproject "skripsi-be/internal/api/admin/b2b_project"
 	"skripsi-be/internal/api/admin/company"
 	"skripsi-be/internal/api/admin/customer"
 	customerinstallation "skripsi-be/internal/api/admin/customer/installation"
@@ -32,6 +33,8 @@ import (
 	broadcastapi "skripsi-be/internal/api/broadcast"
 	upload_file "skripsi-be/internal/api/common/upload_file"
 	customerdashboard "skripsi-be/internal/api/customer/dashboard"
+	customertickets "skripsi-be/internal/api/customer/tickets"
+	servicerequests "skripsi-be/internal/api/customer/service_requests"
 	"skripsi-be/internal/api/customer/monitoring"
 	newsapi "skripsi-be/internal/api/news"
 	telegramapi "skripsi-be/internal/api/telegram"
@@ -99,6 +102,9 @@ func RouteFiber(app *fiber.App) {
 	mikrotik.MikroTikRoutes(admin.Group("/mikrotik"))
 	geocoding.AdminGeocodingRoute(admin.Group("/geocoding"))
 	inventory.InventoryRoute(admin)
+	servicerequests.AdminServiceRequestRoute(admin.Group("/service-requests"))
+	// B2B Incidental Project — Sprint 6 (master, quotation, milestone, margin, WO/BAST)
+	b2bproject.AdminB2BProjectRoute(admin.Group("/b2b-project"))
 
 	// Network Monitoring routes
 	networkMonitoringHandler := network_monitoring.NewNetworkMonitoringHandler(
@@ -121,6 +127,8 @@ func RouteFiber(app *fiber.App) {
 
 	customer := api.Group("/customer")
 	customerdashboard.CustomerDashboardRoute(customer.Group("/dashboard"))
+	customertickets.CustomerTicketRoute(customer.Group("/tickets"))
+	servicerequests.CustomerServiceRequestRoute(customer.Group("/service-requests"))
 
 	// Customer monitoring routes
 	monitoring.RouteCustomerMonitoring(app)

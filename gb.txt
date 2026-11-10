@@ -1,0 +1,10 @@
+﻿EXIT=1
+go : internal\api\admin\b2b_project\service.go:2:1: expected 'package', found 'func'
+At line:1 char:98
++ ... em '_patch_pkg.cjs' -Force; $o = go build ./internal/... 2>&1 | Out-S ...
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (internal\api\ad...', found 'func':String) [], RemoteExceptio 
+   n
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
