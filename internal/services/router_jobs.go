@@ -120,19 +120,19 @@ func processDueJobs(db *gorm.DB) bool {
 		return true // Job was processed (even if failed)
 	}
 
-	// Acquire MikroTik connection
-	mt := GetSharedMikroTikService()
-	if mt == nil || !mt.IsConnected() {
-		setJobRetry(db, &job, fmt.Errorf("mikrotik not connected"))
+	// Acquire RouterOS API connection
+	router := GetSharedRouterOSAPI()
+	if router == nil || !router.IsConnected() {
+		setJobRetry(db, &job, fmt.Errorf("RouterOS API not connected"))
 		return true // Job was processed (even if failed)
 	}
 
 	var err error
 	switch RouterAction(job.Action) {
 	case RouterActionSetUnpaidScheduler:
-		err = executeSetUnpaidScheduler(mt, &invoice)
+		err = executeSetUnpaidScheduler(router, &invoice)
 	case RouterActionRunOpenScript:
-		err = executeRunOpenScript(mt, &invoice)
+		err = executeRunOpenScript(router, &invoice)
 	default:
 		err = fmt.Errorf("unknown action: %s", job.Action)
 	}
@@ -194,51 +194,50 @@ func min(a, b int) int {
 }
 
 // Helpers to execute actions
-func executeSetUnpaidScheduler(mt *MikroTikService, invoice *entities.Invoice) error {
+func executeSetUnpaidScheduler(router *RouterOSAPI, invoice *entities.Invoice) error {
 	if invoice.DueDate == nil {
 		return fmt.Errorf("invoice due date is nil")
 	}
 	name := buildSchedulerName(invoice)
-	// Pre-check
-	checkCmd := fmt.Sprintf("/system scheduler print count-only where name=\"%s\"", name)
-	if out, err := mt.ExecuteCommand(checkCmd); err != nil {
-		return fmt.Errorf("mikrotik check failed: %w", err)
-	} else if strings.TrimSpace(out) == "0" {
+	records, err := router.Command("/system/scheduler/print")
+	if err != nil {
+		return fmt.Errorf("RouterOS scheduler check failed: %w", err)
+	}
+	schedulerID := findRouterOSRecordID(records, name)
+	if schedulerID == "" {
 		return fmt.Errorf("scheduler not found: %s", name)
 	}
-	startDate := invoice.DueDate.Format("Jan/02/2006")
-	setCmd := fmt.Sprintf("/system scheduler set [find name=\"%s\"] start-date=\"%s\"", name, startDate)
-	// Add log for visibility
-	logCmd := fmt.Sprintf(":log info \"crm: set start-date for %s -> %s\"", name, startDate)
-	if _, err := mt.ExecuteCommand(setCmd); err != nil {
-		return err
-	}
-	if _, err := mt.ExecuteCommand(logCmd); err != nil {
-		// non-fatal
-		log.Printf("[routerjobs] log command error: %v", err)
+	startDate := strings.ToLower(invoice.DueDate.Format("Jan/02/2006"))
+	if _, err := router.Command("/system/scheduler/set", "=.id="+schedulerID, "=start-date="+startDate); err != nil {
+		return fmt.Errorf("failed to set scheduler date: %w", err)
 	}
 	return nil
 }
 
-func executeRunOpenScript(mt *MikroTikService, invoice *entities.Invoice) error {
+func executeRunOpenScript(router *RouterOSAPI, invoice *entities.Invoice) error {
 	name := buildSchedulerName(invoice)
 	scriptName := "open_" + name
-	// Pre-check
-	checkCmd := fmt.Sprintf("/system script print count-only where name=\"%s\"", scriptName)
-	if out, err := mt.ExecuteCommand(checkCmd); err != nil {
-		return fmt.Errorf("mikrotik check failed: %w", err)
-	} else if strings.TrimSpace(out) == "0" {
+	records, err := router.Command("/system/script/print")
+	if err != nil {
+		return fmt.Errorf("RouterOS script check failed: %w", err)
+	}
+	scriptID := findRouterOSRecordID(records, scriptName)
+	if scriptID == "" {
 		return fmt.Errorf("script not found: %s", scriptName)
 	}
-	runCmd := fmt.Sprintf("/system script run \"%s\"", scriptName)
-	logCmd := fmt.Sprintf(":log info \"crm: run %s\"", scriptName)
-	if _, err := mt.ExecuteCommand(runCmd); err != nil {
-		return err
-	}
-	if _, err := mt.ExecuteCommand(logCmd); err != nil {
-		log.Printf("[routerjobs] log command error: %v", err)
+	if _, err := router.Command("/system/script/run", "=.id="+scriptID); err != nil {
+		return fmt.Errorf("failed to run script %s: %w", scriptName, err)
 	}
 	return nil
+}
+
+func findRouterOSRecordID(records []map[string]string, name string) string {
+	for _, record := range records {
+		if record["name"] == name {
+			return record[".id"]
+		}
+	}
+	return ""
 }
 
 func buildSchedulerName(invoice *entities.Invoice) string {

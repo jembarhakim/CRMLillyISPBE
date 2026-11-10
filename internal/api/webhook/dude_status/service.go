@@ -2,7 +2,9 @@ package dude_status
 
 import (
 	"errors"
+	"io"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 
@@ -24,6 +26,8 @@ type Service struct {
 	pingMu      sync.Mutex
 	pingState   PingJobStatus
 	pingHost    func(string) (bool, error)
+	syncMu      sync.Mutex
+	syncState   RouterOSSyncStatus
 }
 
 func NewService(repository StatusRepository, broadcaster StatusBroadcaster) *Service {
@@ -50,6 +54,86 @@ func (s *Service) ReceiveStatus(status DeviceStatus) error {
 
 func (s *Service) ListDevices() ([]entities.DudeDeviceStatus, error) {
 	return s.repository.List()
+}
+
+func (s *Service) PreviewCSV(reader io.Reader) (CSVPreview, error) {
+	rows, err := parseDudeCSV(reader)
+	if err != nil {
+		return CSVPreview{}, err
+	}
+
+	preview := CSVPreview{Rows: len(rows), Maps: make([]CSVMapPreview, 0)}
+	maps := make(map[string]*CSVMapPreview)
+	for _, row := range rows {
+		if len(row.mapNames) == 0 {
+			preview.Skipped++
+			continue
+		}
+		for _, mapName := range row.mapNames {
+			entry := maps[mapName]
+			if entry == nil {
+				entry = &CSVMapPreview{Name: mapName}
+				maps[mapName] = entry
+			}
+			entry.Rows++
+			entry.Devices += len(row.devices)
+			entry.Skipped += row.skipped
+		}
+		preview.Skipped += row.skipped
+	}
+	for _, entry := range maps {
+		preview.Maps = append(preview.Maps, *entry)
+	}
+	sort.Slice(preview.Maps, func(i, j int) bool {
+		return preview.Maps[i].Name < preview.Maps[j].Name
+	})
+	return preview, nil
+}
+
+func (s *Service) ImportCSV(reader io.Reader, mapName string) (CSVImportResult, error) {
+	mapName = strings.TrimSpace(mapName)
+	if mapName == "" {
+		return CSVImportResult{}, ErrCSVMapRequired
+	}
+
+	rows, err := parseDudeCSV(reader)
+	if err != nil {
+		return CSVImportResult{}, err
+	}
+
+	devicesByIP := make(map[string]entities.DudeDeviceStatus)
+	skipped := 0
+	for _, row := range rows {
+		if !row.hasMap(mapName) {
+			continue
+		}
+		skipped += row.skipped
+		for _, device := range row.devices {
+			device.MapName = mapName
+			devicesByIP[device.IPAddress] = device
+		}
+	}
+	if len(devicesByIP) == 0 {
+		return CSVImportResult{}, ErrCSVMapHasNoDevices
+	}
+
+	devices := make([]entities.DudeDeviceStatus, 0, len(devicesByIP))
+	for _, device := range devicesByIP {
+		devices = append(devices, device)
+	}
+	sort.Slice(devices, func(i, j int) bool {
+		return devices[i].IPAddress < devices[j].IPAddress
+	})
+
+	result, err := s.repository.ImportDevices(devices)
+	if err != nil {
+		return CSVImportResult{}, err
+	}
+	return CSVImportResult{
+		ImportResult: result,
+		MapName:      mapName,
+		Skipped:      skipped,
+	}, nil
 }
 
 func (s *Service) UpdateDeviceDetails(id string, details UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error) {

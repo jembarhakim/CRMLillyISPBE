@@ -103,7 +103,7 @@ func (s *Service) Enqueue(to, templateKey string, variables map[string]any, dedu
 	}
 
 	var template entities.NotificationTemplate
-	if err := s.db.First(&template, "key = ?", templateKey).Error; err != nil {
+	if err := s.db.First(&template, "`key` = ?", templateKey).Error; err != nil {
 		return fmt.Errorf("notification template %q: %w", templateKey, err)
 	}
 	if !template.Enabled {
@@ -199,7 +199,7 @@ func (s *Service) SaveTemplate(input TemplateInput) (entities.NotificationTempla
 	if err != nil {
 		return entities.NotificationTemplate{}, err
 	}
-	err = s.db.First(&template, "key = ?", input.Key).Error
+	err = s.db.First(&template, "`key` = ?", input.Key).Error
 	return template, err
 }
 
@@ -209,7 +209,7 @@ func (s *Service) DeleteTemplate(key string) error {
 			return errors.New("system templates cannot be deleted; disable or edit the template instead")
 		}
 	}
-	result := s.db.Delete(&entities.NotificationTemplate{}, "key = ?", key)
+	result := s.db.Delete(&entities.NotificationTemplate{}, "`key` = ?", key)
 	if result.Error != nil {
 		return result.Error
 	}

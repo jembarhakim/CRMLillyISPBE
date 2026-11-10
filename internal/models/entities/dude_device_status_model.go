@@ -11,6 +11,7 @@ type DudeDeviceStatus struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
 	Name      string    `json:"device_name" gorm:"type:varchar(255);not null"`
 	IPAddress string    `json:"ip_address" gorm:"type:varchar(45);not null;uniqueIndex"`
+	MapName   string    `json:"map_name" gorm:"type:varchar(255);index"`
 	Status    string    `json:"status" gorm:"type:varchar(100);not null"`
 	UserName  string    `json:"user_name" gorm:"type:varchar(255)"`
 	UserPhone string    `json:"user_phone" gorm:"type:varchar(100)"`

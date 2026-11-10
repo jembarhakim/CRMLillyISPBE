@@ -3,7 +3,6 @@ package mikrotik
 import (
 	"log"
 	"net/http"
-	"sync"
 
 	"skripsi-be/internal/helpers"
 	"skripsi-be/internal/services"
@@ -11,10 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type RouterOSHandler struct {
-	mu     sync.RWMutex
-	client *services.RouterOSAPI
-}
+type RouterOSHandler struct{}
 
 func NewRouterOSHandler() *RouterOSHandler {
 	return &RouterOSHandler{}
@@ -43,10 +39,8 @@ func (h *RouterOSHandler) Connect(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, http.StatusBadGateway, false, err.Error(), nil)
 	}
 
-	h.mu.Lock()
-	oldClient := h.client
-	h.client = client
-	h.mu.Unlock()
+	oldClient := services.GetSharedRouterOSAPI()
+	services.SetSharedRouterOSAPI(client)
 	if oldClient != nil {
 		if err := oldClient.Close(); err != nil {
 			log.Printf("[mikrotik-api] failed to close replaced RouterOS connection: %v", err)
@@ -62,13 +56,11 @@ func (h *RouterOSHandler) Connect(c *fiber.Ctx) error {
 }
 
 func (h *RouterOSHandler) Disconnect(c *fiber.Ctx) error {
-	h.mu.Lock()
-	client := h.client
-	h.client = nil
-	h.mu.Unlock()
+	client := services.GetSharedRouterOSAPI()
 	if client == nil {
 		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "RouterOS API is not connected", nil)
 	}
+	services.ClearSharedRouterOSAPI(client)
 	if err := client.Close(); err != nil {
 		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, "Failed to disconnect from RouterOS API: "+err.Error(), nil)
 	}
@@ -121,14 +113,15 @@ func (h *RouterOSHandler) ListDudeServices(c *fiber.Ctx) error {
 
 func (h *RouterOSHandler) requireClient(c *fiber.Ctx) (*services.RouterOSAPI, error) {
 	client := h.getClient()
-	if client == nil || !client.IsConnected() {
+	if client == nil {
 		return nil, helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "RouterOS API is not connected", nil)
+	}
+	if err := client.EnsureConnected(); err != nil {
+		return nil, helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "RouterOS API reconnect failed: "+err.Error(), nil)
 	}
 	return client, nil
 }
 
 func (h *RouterOSHandler) getClient() *services.RouterOSAPI {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.client
+	return services.GetSharedRouterOSAPI()
 }

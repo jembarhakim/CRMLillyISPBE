@@ -3,13 +3,17 @@ package dude_status
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 	"skripsi-be/internal/helpers"
+	"skripsi-be/internal/services"
 )
+
+const maxDudeCSVSize = 5 * 1024 * 1024
 
 type Handler struct {
 	service *Service
@@ -55,6 +59,78 @@ func (h *Handler) ListDevices(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, "Failed to load The Dude devices", nil)
 	}
 	return helpers.ResponseUtils(c, fiber.StatusOK, true, "The Dude devices loaded", devices)
+}
+
+func (h *Handler) PreviewCSV(c *fiber.Ctx) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, "CSV file is required", nil)
+	}
+	if fileHeader.Size > maxDudeCSVSize {
+		return helpers.ResponseUtils(c, fiber.StatusRequestEntityTooLarge, false, "CSV file exceeds the 5 MiB limit", nil)
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, "Failed to read CSV file", nil)
+	}
+	defer file.Close()
+
+	preview, err := h.service.PreviewCSV(io.LimitReader(file, maxDudeCSVSize+1))
+	if err != nil {
+		if errors.Is(err, ErrInvalidCSV) {
+			return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, err.Error(), nil)
+		}
+		log.Printf("[dude-import] failed to preview CSV: %v", err)
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, "Failed to parse CSV: "+err.Error(), nil)
+	}
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "The Dude CSV preview is ready", preview)
+}
+
+func (h *Handler) ImportCSV(c *fiber.Ctx) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, "CSV file is required", nil)
+	}
+	if fileHeader.Size > maxDudeCSVSize {
+		return helpers.ResponseUtils(c, fiber.StatusRequestEntityTooLarge, false, "CSV file exceeds the 5 MiB limit", nil)
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, "Failed to read CSV file", nil)
+	}
+	defer file.Close()
+
+	result, err := h.service.ImportCSV(io.LimitReader(file, maxDudeCSVSize+1), c.FormValue("map_name"))
+	if errors.Is(err, ErrCSVMapRequired) || errors.Is(err, ErrCSVMapHasNoDevices) || errors.Is(err, ErrInvalidCSV) {
+		return helpers.ResponseUtils(c, fiber.StatusBadRequest, false, err.Error(), nil)
+	}
+	if err != nil {
+		log.Printf("[dude-import] failed to import CSV: %v", err)
+		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, "Failed to import The Dude CSV", nil)
+	}
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "The Dude devices imported", result)
+}
+
+func (h *Handler) StartRouterOSSync(c *fiber.Ctx) error {
+	job, err := h.service.StartRouterOSSync(services.GetSharedRouterOSAPI())
+	if errors.Is(err, ErrRouterOSNotConnected) {
+		return helpers.ResponseUtils(c, fiber.StatusServiceUnavailable, false, err.Error(), nil)
+	}
+	if errors.Is(err, ErrNoPingTargets) {
+		return helpers.ResponseUtils(c, fiber.StatusConflict, false, err.Error(), nil)
+	}
+	if errors.Is(err, ErrRouterOSSyncRunning) {
+		return helpers.ResponseUtils(c, fiber.StatusConflict, false, err.Error(), job)
+	}
+	if err != nil {
+		log.Printf("[dude-sync] failed to start RouterOS sync: %v", err)
+		return helpers.ResponseUtils(c, fiber.StatusInternalServerError, false, "Failed to start RouterOS status sync", nil)
+	}
+	return helpers.ResponseUtils(c, fiber.StatusAccepted, true, "RouterOS status sync started", job)
+}
+
+func (h *Handler) RouterOSSyncStatus(c *fiber.Ctx) error {
+	return helpers.ResponseUtils(c, fiber.StatusOK, true, "RouterOS status sync retrieved", h.service.RouterOSSyncStatus())
 }
 
 func (h *Handler) StartPingAll(c *fiber.Ctx) error {

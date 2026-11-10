@@ -35,7 +35,7 @@ MYSQL_PASSWORD=
 MYSQL_DATABASE=iqgncnzy_skripsi
 
 MIKROTIK_HOST=10.10.9.203
-MIKROTIK_PORT=22
+MIKROTIK_API_PORT=8783
 MIKROTIK_USERNAME=rnd
 MIKROTIK_PASSWORD=rnd@123
 
@@ -52,7 +52,7 @@ MYSQL_PASSWORD=your-production-password
 MYSQL_DATABASE=iqgncnzy_skripsi
 
 MIKROTIK_HOST=103.148.18.52
-MIKROTIK_PORT=22
+MIKROTIK_API_PORT=8783
 MIKROTIK_USERNAME=your-production-mikrotik-user
 MIKROTIK_PASSWORD=your-production-mikrotik-password
 
@@ -119,4 +119,3 @@ PORT=3001
 | Production | Production DB | 103.148.18.52:22 | `node switch-env.js production` |
 
 **Need help?** Just run `node switch-env.js` without arguments to see available options.
-

@@ -1,7 +1,6 @@
 package notifications
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -38,16 +37,17 @@ func StartWorker(db *gorm.DB) {
 func processNext(db *gorm.DB) error {
 	var notification entities.Notification
 	err := db.Transaction(func(tx *gorm.DB) error {
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("(status = ? AND next_attempt_at <= ?) OR (status = ? AND updated_at <= ?)",
 				StatusQueued, time.Now(), StatusSending, time.Now().Add(-2*time.Minute)).
 			Order("created_at ASC").
-			First(&notification).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			Limit(1).
+			Find(&notification)
+		if result.Error != nil {
+			return result.Error
 		}
-		if err != nil {
-			return err
+		if result.RowsAffected == 0 {
+			return nil
 		}
 
 		notification.Attempts++

@@ -12,6 +12,7 @@ import (
 	customerinstallation "skripsi-be/internal/api/admin/customer/installation"
 	"skripsi-be/internal/api/admin/dashboard"
 	"skripsi-be/internal/api/admin/feature"
+	fieldpayment "skripsi-be/internal/api/admin/field_payment"
 	"skripsi-be/internal/api/admin/geocoding"
 	"skripsi-be/internal/api/admin/inventory"
 	"skripsi-be/internal/api/admin/invoice"
@@ -92,6 +93,7 @@ func RouteFiber(app *fiber.App) {
 	itemscatalog.ItemsCatalogRoute(admin.Group("/items-catalog"))
 	transaction.AdminTrasactionRoute(admin.Group("/transaction"))
 	invoice.AdminInvoiceRoute(admin.Group("/invoice"))
+	fieldpayment.FieldPaymentRoutes(admin.Group("/field-payments"))
 	recurring_invoice.AdminRecurringInvoiceRoute(admin.Group("/recurring-invoice"))
 	notificationsapi.RegisterAdminRoutes(admin.Group("/notifications"), database.GetDB())
 	mikrotik.MikroTikRoutes(admin.Group("/mikrotik"))

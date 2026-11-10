@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"reflect"
 	"strconv"
 	"testing"
 )
@@ -57,6 +58,102 @@ func TestRouterOSSentenceRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRouterOSCommandConnectionFailureDoesNotPanic(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	client := &RouterOSAPI{conn: clientConn, reader: bufio.NewReader(clientConn)}
+	serverResult := make(chan error, 1)
+	go func() {
+		defer serverConn.Close()
+		_, err := readRouterOSSentence(bufio.NewReader(serverConn))
+		serverResult <- err
+	}()
+
+	if _, err := client.Command("/ip/hotspot/ip-binding/print"); err == nil {
+		t.Fatal("Command() error = nil, want closed connection error")
+	}
+	if err := <-serverResult; err != nil {
+		t.Fatalf("fake RouterOS server: %v", err)
+	}
+	if client.conn != nil {
+		t.Fatal("Command() did not invalidate the failed connection")
+	}
+}
+
+func TestRouterOSCommandWithNilClientReturnsError(t *testing.T) {
+	var client *RouterOSAPI
+	if _, err := client.Command("/ip/hotspot/ip-binding/print"); err == nil {
+		t.Fatal("Command() error = nil, want disconnected error")
+	}
+}
+
+func TestRouterOSCommandReconnectsWithStoredConfig(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	serverResult := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverResult <- err
+			return
+		}
+		defer conn.Close()
+		reader := bufio.NewReader(conn)
+		login, err := readRouterOSSentence(reader)
+		if err != nil {
+			serverResult <- fmt.Errorf("read login: %w", err)
+			return
+		}
+		wantLogin := []string{"/login", "=name=api-user", "=password=test-password"}
+		if !reflect.DeepEqual(login, wantLogin) {
+			serverResult <- fmt.Errorf("login = %v, want %v", login, wantLogin)
+			return
+		}
+		if err := writeRouterOSSentence(conn, []string{"!done"}); err != nil {
+			serverResult <- fmt.Errorf("write login response: %w", err)
+			return
+		}
+		command, err := readRouterOSSentence(reader)
+		if err != nil {
+			serverResult <- fmt.Errorf("read command: %w", err)
+			return
+		}
+		if !reflect.DeepEqual(command, []string{"/ip/hotspot/ip-binding/print"}) {
+			serverResult <- fmt.Errorf("command = %v, want IP Binding print", command)
+			return
+		}
+		serverResult <- writeRouterOSSentence(conn, []string{"!done"})
+	}()
+
+	_, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatalf("parse listener address: %v", err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatalf("parse listener port: %v", err)
+	}
+	client := &RouterOSAPI{config: RouterOSAPIConfig{
+		Host:     "127.0.0.1",
+		Port:     port,
+		Username: "api-user",
+		Password: "test-password",
+	}}
+	if _, err := client.Command("/ip/hotspot/ip-binding/print"); err != nil {
+		t.Fatalf("Command() after disconnect error = %v", err)
+	}
+	if err := <-serverResult; err != nil {
+		t.Fatalf("fake RouterOS server: %v", err)
+	}
+	if !client.IsConnected() {
+		t.Fatal("client is not connected after successful reconnect")
+	}
+	_ = client.Close()
+}
+
 func TestRouterOSRecordPreservesEqualsInValue(t *testing.T) {
 	record := routerOSRecord([]string{"=.id=*1", "=name=user=one", "=disabled=false"})
 	if record[".id"] != "*1" {
@@ -67,6 +164,33 @@ func TestRouterOSRecordPreservesEqualsInValue(t *testing.T) {
 	}
 	if record["disabled"] != "false" {
 		t.Errorf("disabled = %q, want false", record["disabled"])
+	}
+}
+
+func TestParseRouterOSPingResult(t *testing.T) {
+	tests := []struct {
+		name    string
+		records []map[string]string
+		wantUp  bool
+		wantErr bool
+	}{
+		{name: "reply time", records: []map[string]string{{"time": "12ms"}}, wantUp: true},
+		{name: "received packets", records: []map[string]string{{"sent": "1", "received": "1", "packet-loss": "0%"}}, wantUp: true},
+		{name: "no received packets", records: []map[string]string{{"sent": "1", "received": "0", "packet-loss": "100%"}}, wantUp: false},
+		{name: "timeout status", records: []map[string]string{{"status": "timeout"}}, wantUp: false},
+		{name: "missing result", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseRouterOSPingResult(tt.records)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseRouterOSPingResult() error = %v, wantErr %t", err, tt.wantErr)
+			}
+			if err == nil && got != tt.wantUp {
+				t.Errorf("parseRouterOSPingResult() = %t, want %t", got, tt.wantUp)
+			}
+		})
 	}
 }
 

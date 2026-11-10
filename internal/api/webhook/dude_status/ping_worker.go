@@ -19,7 +19,7 @@ const (
 
 var (
 	ErrPingAlreadyRunning = errors.New("a ping-all job is already running")
-	ErrNoPingTargets      = errors.New("no devices with IP addresses are registered; receive a status webhook first")
+	ErrNoPingTargets      = errors.New("no devices with IP addresses are registered; import a network-map CSV first")
 )
 
 type PingJobStatus struct {

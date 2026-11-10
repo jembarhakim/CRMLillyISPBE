@@ -2,6 +2,8 @@ package dude_status
 
 import (
 	"skripsi-be/internal/helpers"
+	"skripsi-be/internal/services"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -14,6 +16,7 @@ func RegisterRoutes(webhookApp, adminApp fiber.Router, db *gorm.DB) {
 	repository := NewStatusRepository(db)
 	service := NewService(repository, hub)
 	handler := NewHandler(service)
+	go service.StartRouterOSSyncLoop(time.Minute, services.GetSharedRouterOSAPI)
 
 	webhookApp.Post("/", handler.ReceiveStatus)
 	webhookApp.Get("/ws", websocket.New(hub.HandleConnection, websocket.Config{
@@ -29,7 +32,11 @@ func RegisterRoutes(webhookApp, adminApp fiber.Router, db *gorm.DB) {
 	}))
 
 	adminApp.Get("/", helpers.VerifyToken, helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), handler.ListDevices)
+	adminApp.Post("/import/preview", helpers.VerifyToken, helpers.RequireRoles("ADMIN"), handler.PreviewCSV)
+	adminApp.Post("/import", helpers.VerifyToken, helpers.RequireRoles("ADMIN"), handler.ImportCSV)
 	adminApp.Put("/:id", helpers.VerifyToken, helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), handler.UpdateDeviceDetails)
 	adminApp.Post("/ping-all", helpers.VerifyToken, helpers.RequireRoles("ADMIN"), handler.StartPingAll)
 	adminApp.Get("/ping-all", helpers.VerifyToken, helpers.RequireRoles("ADMIN"), handler.PingAllStatus)
+	adminApp.Post("/sync", helpers.VerifyToken, helpers.RequireRoles("ADMIN"), handler.StartRouterOSSync)
+	adminApp.Get("/sync", helpers.VerifyToken, helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), handler.RouterOSSyncStatus)
 }

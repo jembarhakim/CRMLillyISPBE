@@ -163,8 +163,9 @@ func (h *MikroTikHandler) GetSystemInfo(c *fiber.Ctx) error {
 
 // Set hotspot IP binding type (for customer isolation)
 func (h *MikroTikHandler) SetHotspotIPBindingType(c *fiber.Ctx) error {
-	if h.mikroTikService == nil {
-		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "Not connected to any MikroTik device", nil)
+	router := services.GetSharedRouterOSAPI()
+	if router == nil || !router.IsConnected() {
+		return helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "RouterOS API is not connected", nil)
 	}
 
 	var req struct {
@@ -180,7 +181,7 @@ func (h *MikroTikHandler) SetHotspotIPBindingType(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "MAC address and type are required", nil)
 	}
 
-	err := h.mikroTikService.SetHotspotIPBindingType(req.MacAddress, req.Type)
+	err := router.SetHotspotIPBindingType(req.MacAddress, req.Type)
 	if err != nil {
 		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, "Failed to set IP binding type: "+err.Error(), nil)
 	}
@@ -193,11 +194,12 @@ func (h *MikroTikHandler) SetHotspotIPBindingType(c *fiber.Ctx) error {
 
 // Get hotspot IP bindings
 func (h *MikroTikHandler) GetHotspotIPBindings(c *fiber.Ctx) error {
-	if h.mikroTikService == nil {
-		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "Not connected to any MikroTik device", nil)
+	router := services.GetSharedRouterOSAPI()
+	if router == nil || !router.IsConnected() {
+		return helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "RouterOS API is not connected", nil)
 	}
 
-	bindings, err := h.mikroTikService.GetHotspotIPBindings()
+	bindings, err := router.ListHotspotIPBindings()
 	if err != nil {
 		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, "Failed to get IP bindings: "+err.Error(), nil)
 	}
@@ -207,8 +209,9 @@ func (h *MikroTikHandler) GetHotspotIPBindings(c *fiber.Ctx) error {
 
 // Get specific hotspot IP binding by MAC address
 func (h *MikroTikHandler) GetHotspotIPBindingByMAC(c *fiber.Ctx) error {
-	if h.mikroTikService == nil {
-		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "Not connected to any MikroTik device", nil)
+	router := services.GetSharedRouterOSAPI()
+	if router == nil || !router.IsConnected() {
+		return helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "RouterOS API is not connected", nil)
 	}
 
 	macAddress := c.Params("mac")
@@ -216,7 +219,7 @@ func (h *MikroTikHandler) GetHotspotIPBindingByMAC(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, http.StatusBadRequest, false, "MAC address is required", nil)
 	}
 
-	binding, err := h.mikroTikService.GetHotspotIPBindingByMAC(macAddress)
+	binding, err := router.GetHotspotIPBindingByMAC(macAddress)
 	if err != nil {
 		return helpers.ResponseUtils(c, http.StatusNotFound, false, "IP binding not found: "+err.Error(), nil)
 	}

@@ -1,6 +1,6 @@
-# The Dude status webhook
+# The Dude status monitoring
 
-Backend ini menerima perubahan status dari The Dude di `POST /api/webhook/dude-status` dan menyiarkan payload yang sama ke koneksi WebSocket `GET /api/webhook/dude-status/ws`.
+CRM dapat mengisi status perangkat melalui dua cara: sinkronisasi otomatis RouterOS API (utama) atau webhook status The Dude (opsional). Sinkronisasi API tidak memerlukan server The Dude mengakses laptop/backend.
 
 Server pada repository ini secara default berjalan di port `3001` (`cmd/myapp/main.go`). Ganti port pada URL contoh di bawah jika deployment Anda menggunakan port atau domain lain.
 
@@ -16,7 +16,22 @@ Server pada repository ini secara default berjalan di port `3001` (`cmd/myapp/ma
 
 Status perangkat disimpan pada tabel `dude_device_statuses`; data dengan IP yang sama akan memperbarui nama, status, dan waktu terakhir terlihat. Tabel dibuat oleh proses `AutoMigrate` aplikasi. WebSocket mengirim JSON payload di atas kepada seluruh client yang terhubung.
 
-Webhook ini berbasis perubahan status, bukan polling. Jika perangkat tetap online atau offline, tidak perlu mengirim status berulang kali: status terakhir tetap tersimpan di database sampai ada notifikasi perubahan berikutnya. Perangkat yang belum pernah mengirim notifikasi akan belum memiliki status di CRM sampai notifikasi pertamanya diterima.
+## Import network map and automatic sync
+
+Export the desired network map from The Dude as CSV and import it from the CRM **Monitoring Jaringan** page. The CSV must contain `Name`, `Addresses`, and `Maps` columns; `Flag` is used as the initial status when present. Select a map during preview. Only valid IP addresses in that map are imported. Re-importing updates the existing device matched by IP and preserves CRM contact/location fields.
+
+The backend starts a RouterOS API status synchronization loop automatically. It checks imported devices through the connected router's `/ping` command every 60 seconds; the first check runs shortly after startup. `/api/admin/dude-devices/sync` reports its status, and an admin can POST to the same route to start a check immediately. A probe/API/database failure is counted as failed and does not change the stored status to `down`. The RouterOS API account needs the `api`, `read`, `dude`, and `test` policies. The router must be able to route to the imported device networks. Devices that block ICMP may require The Dude webhook method instead.
+
+CSV endpoints (admin token required):
+
+- `POST /api/admin/dude-devices/import/preview` — multipart field `file`; returns map names and valid-IP counts.
+- `POST /api/admin/dude-devices/import` — multipart fields `file` and `map_name`; upserts the selected map's devices by IP.
+
+Files are limited to 5 MiB. The CSV importer accepts MikroTik/The Dude export headers named `Name`, `Addresses`, `Maps`, and optional `Flag`.
+
+## Optional status webhook
+
+Webhook status remains available at `POST /api/webhook/dude-status` and broadcasts updates to WebSocket `GET /api/webhook/dude-status/ws`. Use it for devices whose status cannot be determined by the RouterOS ping check.
 
 Setelah perangkat mengirim notifikasi status untuk pertama kalinya, perangkat muncul pada bagian **The Dude Routers** di peta dashboard. Pilih perangkat dari daftar untuk mengisi nama pengguna/pemilik, nomor telepon, alamat, catatan, dan titik lokasi pada peta. Data ini disimpan terpisah dari data pelanggan CRM; nama perangkat dan IP tetap mengikuti update The Dude.
 
@@ -33,7 +48,7 @@ Ping-all hanya bisa memeriksa perangkat yang sudah memiliki IP di tabel `dude_de
 
 Router tanpa koordinat tetap terlihat di daftar sidebar, tetapi baru menjadi pin pada peta setelah titik lokasi dipilih dan disimpan.
 
-## RouterOS Execute on Server
+### RouterOS Execute on Server
 
 Tambahkan script berikut pada notification The Dude dengan tipe **Execute on Server**. Sesuaikan URL, lalu sesuaikan placeholder `%name`, `%address`, dan `%status` bila versi The Dude Anda menggunakan variabel notifikasi yang berbeda.
 

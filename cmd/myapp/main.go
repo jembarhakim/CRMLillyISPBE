@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -72,36 +73,46 @@ func main() {
 	routes.RouteFiber(app)
 	go notifications.StartWorker(database.GetDB())
 
-	// Auto-connect to MikroTik on startup if credentials are available
+	// Auto-connect to the RouterOS API on startup if credentials are available.
 	go func() {
-		// Wait a bit for the server to fully start
 		time.Sleep(2 * time.Second)
 
 		host := os.Getenv("MIKROTIK_HOST")
-		port := os.Getenv("MIKROTIK_PORT")
 		username := os.Getenv("MIKROTIK_USERNAME")
 		password := os.Getenv("MIKROTIK_PASSWORD")
 
-		if host != "" && port != "" && username != "" && password != "" {
-			log.Printf("[mikrotik] auto-connecting to %s:%s", host, port)
+		if host != "" && username != "" && password != "" {
+			port, err := parseRouterOSAPIPort(os.Getenv("MIKROTIK_API_PORT"))
+			if err != nil {
+				log.Printf("[mikrotik-api] auto-connect failed: %v", err)
+				return
+			}
 
-			// Create MikroTik service directly
-			config := &services.MikroTikConfig{
+			useTLS := false
+			if value := os.Getenv("MIKROTIK_API_USE_TLS"); value != "" {
+				useTLS, err = strconv.ParseBool(value)
+				if err != nil {
+					log.Printf("[mikrotik-api] auto-connect failed: invalid MIKROTIK_API_USE_TLS: %v", err)
+					return
+				}
+			}
+
+			log.Printf("[mikrotik-api] auto-connecting to %s:%d", host, port)
+			client, err := services.ConnectRouterOSAPI(services.RouterOSAPIConfig{
 				Host:     host,
-				Port:     parsePort(port),
+				Port:     port,
 				Username: username,
 				Password: password,
+				UseTLS:   useTLS,
+			})
+			if err != nil {
+				log.Printf("[mikrotik-api] auto-connect failed: %v", err)
+				return
 			}
-
-			mtService := services.NewMikroTikService(config)
-			if err := mtService.Connect(); err != nil {
-				log.Printf("[mikrotik] auto-connect failed: %v", err)
-			} else {
-				services.SetSharedMikroTikService(mtService)
-				log.Printf("[mikrotik] auto-connected successfully")
-			}
+			services.SetSharedRouterOSAPI(client)
+			log.Printf("[mikrotik-api] auto-connected successfully")
 		} else {
-			log.Printf("[mikrotik] no credentials found in environment variables")
+			log.Printf("[mikrotik-api] no credentials found in environment variables")
 		}
 	}()
 
@@ -149,11 +160,15 @@ func main() {
 	log.Fatal(app.Listen(":3001"))
 }
 
-func parsePort(portStr string) int {
-	if port, err := strconv.Atoi(portStr); err == nil {
-		return port
+func parseRouterOSAPIPort(portStr string) (int, error) {
+	if strings.TrimSpace(portStr) == "" {
+		return 8783, nil
 	}
-	return 22 // default SSH port
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("invalid MIKROTIK_API_PORT %q", portStr)
+	}
+	return port, nil
 }
 
 // customLoggerMiddleware creates a Fiber middleware that uses slog for HTTP request logging

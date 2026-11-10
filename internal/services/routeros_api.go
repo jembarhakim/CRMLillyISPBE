@@ -39,20 +39,7 @@ func ConnectRouterOSAPI(config RouterOSAPIConfig) (*RouterOSAPI, error) {
 		return nil, fmt.Errorf("RouterOS API username and password are required")
 	}
 
-	address := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
-	dialer := &net.Dialer{Timeout: routerOSAPITimeout}
-	var (
-		conn net.Conn
-		err  error
-	)
-	if config.UseTLS {
-		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: config.Host,
-		})
-	} else {
-		conn, err = dialer.Dial("tcp", address)
-	}
+	conn, err := dialRouterOSAPI(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RouterOS API: %w", err)
 	}
@@ -66,29 +53,117 @@ func ConnectRouterOSAPI(config RouterOSAPIConfig) (*RouterOSAPI, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	client.config.Password = ""
 	return client, nil
 }
 
+func dialRouterOSAPI(config RouterOSAPIConfig) (net.Conn, error) {
+	address := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	dialer := &net.Dialer{Timeout: routerOSAPITimeout}
+	if config.UseTLS {
+		return tls.DialWithDialer(dialer, "tcp", address, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: config.Host,
+		})
+	}
+	return dialer.Dial("tcp", address)
+}
+
 func (c *RouterOSAPI) Close() error {
+	if c == nil {
+		return nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn == nil {
+		c.reader = nil
+		c.config.Password = ""
 		return nil
 	}
 	err := c.conn.Close()
 	c.conn = nil
+	c.reader = nil
+	c.config.Password = ""
 	return err
 }
 
 func (c *RouterOSAPI) IsConnected() bool {
+	if c == nil {
+		return false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn != nil
 }
 
+func (c *RouterOSAPI) EnsureConnected() error {
+	if c == nil {
+		return fmt.Errorf("RouterOS API client is not initialized")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn != nil {
+		return nil
+	}
+	return c.reconnectLocked()
+}
+
 func (c *RouterOSAPI) Host() string {
+	if c == nil {
+		return ""
+	}
 	return c.config.Host
+}
+
+func (c *RouterOSAPI) Ping(address string) (bool, error) {
+	ip := net.ParseIP(strings.TrimSpace(address))
+	if ip == nil {
+		return false, fmt.Errorf("invalid IP address %q", address)
+	}
+
+	records, err := c.Command("/ping", "=address="+ip.String(), "=count=1", "=interval=300ms")
+	if err != nil {
+		return false, fmt.Errorf("RouterOS API ping failed: %w", err)
+	}
+	return parseRouterOSPingResult(records)
+}
+
+func parseRouterOSPingResult(records []map[string]string) (bool, error) {
+	measured := false
+	for _, record := range records {
+		if received, ok := record["received"]; ok {
+			count, err := strconv.Atoi(received)
+			if err != nil {
+				return false, fmt.Errorf("RouterOS API returned invalid ping receive count %q", received)
+			}
+			measured = true
+			if count > 0 {
+				return true, nil
+			}
+		}
+
+		if packetLoss, ok := record["packet-loss"]; ok {
+			loss := strings.TrimSuffix(packetLoss, "%")
+			percentage, err := strconv.ParseFloat(loss, 64)
+			if err != nil {
+				return false, fmt.Errorf("RouterOS API returned invalid ping packet loss %q", packetLoss)
+			}
+			measured = true
+			if percentage < 100 {
+				return true, nil
+			}
+		}
+
+		if value := strings.TrimSpace(record["time"]); value != "" && !strings.EqualFold(value, "timeout") {
+			return true, nil
+		}
+		if strings.EqualFold(strings.TrimSpace(record["status"]), "timeout") {
+			measured = true
+		}
+	}
+	if measured {
+		return false, nil
+	}
+	return false, fmt.Errorf("RouterOS API returned no ping result")
 }
 
 func (c *RouterOSAPI) login() error {
@@ -128,32 +203,66 @@ func (c *RouterOSAPI) loginWithChallenge(challenge string) error {
 }
 
 func (c *RouterOSAPI) Command(command string, attributes ...string) ([]map[string]string, error) {
+	if c == nil {
+		return nil, fmt.Errorf("RouterOS API is not connected")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn == nil {
-		return nil, fmt.Errorf("RouterOS API is not connected")
+		if err := c.reconnectLocked(); err != nil {
+			return nil, fmt.Errorf("RouterOS API is not connected and reconnect failed: %w", err)
+		}
 	}
 	return c.runLocked(command, attributes...)
 }
 
+func (c *RouterOSAPI) reconnectLocked() error {
+	if c == nil {
+		return fmt.Errorf("RouterOS API client is not initialized")
+	}
+	if strings.TrimSpace(c.config.Host) == "" || c.config.Port < 1 || c.config.Port > 65535 ||
+		c.config.Username == "" || c.config.Password == "" {
+		return fmt.Errorf("RouterOS API reconnect credentials are unavailable")
+	}
+
+	conn, err := dialRouterOSAPI(c.config)
+	if err != nil {
+		return fmt.Errorf("failed to reconnect to %s:%d: %w", c.config.Host, c.config.Port, err)
+	}
+	c.conn = conn
+	c.reader = bufio.NewReader(conn)
+	if err := c.login(); err != nil {
+		_ = conn.Close()
+		c.conn = nil
+		c.reader = nil
+		return fmt.Errorf("RouterOS API reconnect login failed: %w", err)
+	}
+	return nil
+}
+
 func (c *RouterOSAPI) runLocked(command string, attributes ...string) ([]map[string]string, error) {
-	if c.conn == nil {
+	if c == nil || c.conn == nil {
 		return nil, fmt.Errorf("RouterOS API is not connected")
 	}
-	if err := c.conn.SetDeadline(time.Now().Add(routerOSAPITimeout)); err != nil {
+	conn := c.conn
+	reader := c.reader
+	if reader == nil {
+		return nil, fmt.Errorf("RouterOS API response reader is not initialized")
+	}
+	if err := conn.SetDeadline(time.Now().Add(routerOSAPITimeout)); err != nil {
 		c.invalidate()
 		return nil, fmt.Errorf("failed to set RouterOS API timeout: %w", err)
 	}
-	defer c.conn.SetDeadline(time.Time{})
+	defer conn.SetDeadline(time.Time{})
 
-	if err := writeRouterOSSentence(c.conn, append([]string{command}, attributes...)); err != nil {
+	if err := writeRouterOSSentence(conn, append([]string{command}, attributes...)); err != nil {
 		c.invalidate()
 		return nil, fmt.Errorf("failed to send RouterOS API command: %w", err)
 	}
 
 	var records []map[string]string
 	for {
-		sentence, err := readRouterOSSentence(c.reader)
+		sentence, err := readRouterOSSentence(reader)
 		if err != nil {
 			c.invalidate()
 			return nil, fmt.Errorf("failed to read RouterOS API response: %w", err)

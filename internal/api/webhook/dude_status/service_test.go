@@ -2,6 +2,7 @@ package dude_status
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ type fakeStatusRepository struct {
 	err         error
 	calls       int
 	updateCalls int
+	imported    []entities.DudeDeviceStatus
 }
 
 func (r *fakeStatusRepository) Upsert(status DeviceStatus) error {
@@ -24,6 +26,15 @@ func (r *fakeStatusRepository) Upsert(status DeviceStatus) error {
 
 func (r *fakeStatusRepository) List() ([]entities.DudeDeviceStatus, error) {
 	return r.devices, r.err
+}
+
+func (r *fakeStatusRepository) ListImported() ([]entities.DudeDeviceStatus, error) {
+	return r.devices, r.err
+}
+
+func (r *fakeStatusRepository) ImportDevices(devices []entities.DudeDeviceStatus) (ImportResult, error) {
+	r.imported = append(r.imported, devices...)
+	return ImportResult{Created: len(devices), Total: len(devices)}, r.err
 }
 
 func (r *fakeStatusRepository) UpdateDetails(_ string, _ UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error) {
@@ -52,7 +63,6 @@ func TestReceiveStatusPersistsAndBroadcastsTrimmedPayload(t *testing.T) {
 		IPAddress:  " 192.168.1.1 ",
 		Status:     " up ",
 	}
-
 	if err := service.ReceiveStatus(input); err != nil {
 		t.Fatalf("ReceiveStatus() error = %v", err)
 	}
@@ -67,6 +77,51 @@ func TestReceiveStatusPersistsAndBroadcastsTrimmedPayload(t *testing.T) {
 	}
 	if broadcaster.calls != 1 || broadcaster.status != want {
 		t.Fatalf("broadcaster got (%d calls, %#v), want (1 call, %#v)", broadcaster.calls, broadcaster.status, want)
+	}
+}
+
+func TestPreviewCSVReturnsMapCountsAndSkipsInvalidAddresses(t *testing.T) {
+	service := NewService(&fakeStatusRepository{}, &fakeStatusBroadcaster{})
+	csv := "Flag,Name,Addresses,Maps\nup,Router A,10.0.0.1,Map A\ndown,Router B,\"10.0.0.2,invalid\",Map A\nup,Router C,10.0.1.1,Map B\n"
+
+	preview, err := service.PreviewCSV(strings.NewReader(csv))
+	if err != nil {
+		t.Fatalf("PreviewCSV() error = %v", err)
+	}
+	if preview.Rows != 3 || len(preview.Maps) != 2 {
+		t.Fatalf("PreviewCSV() = %+v, want three rows across two maps", preview)
+	}
+	if preview.Maps[0].Name != "Map A" || preview.Maps[0].Devices != 2 || preview.Maps[0].Skipped != 1 {
+		t.Errorf("Map A preview = %+v, want two devices and one skipped address", preview.Maps[0])
+	}
+}
+
+func TestImportCSVSelectsMapAndNormalizesStatus(t *testing.T) {
+	repository := &fakeStatusRepository{}
+	service := NewService(repository, &fakeStatusBroadcaster{})
+	csv := "Flag,Name,Addresses,Maps\nup,Router A,10.0.0.1,Map A\ndown,Router B,10.0.0.2,Map A\nup,Router C,10.0.1.1,Map B\n"
+
+	result, err := service.ImportCSV(strings.NewReader(csv), "Map A")
+	if err != nil {
+		t.Fatalf("ImportCSV() error = %v", err)
+	}
+	if result.Created != 2 || result.Total != 2 || result.MapName != "Map A" {
+		t.Fatalf("ImportCSV() = %+v, want two imported devices for Map A", result)
+	}
+	if len(repository.imported) != 2 {
+		t.Fatalf("imported %d devices, want 2", len(repository.imported))
+	}
+	if repository.imported[0].MapName != "Map A" || repository.imported[0].Status != "up" ||
+		repository.imported[1].Status != "down" {
+		t.Errorf("imported devices = %+v, want map-scoped UP and DOWN devices", repository.imported)
+	}
+}
+
+func TestImportCSVRejectsUnknownMap(t *testing.T) {
+	service := NewService(&fakeStatusRepository{}, &fakeStatusBroadcaster{})
+	_, err := service.ImportCSV(strings.NewReader("Name,Addresses,Maps\nRouter,10.0.0.1,Map A\n"), "Map B")
+	if !errors.Is(err, ErrCSVMapHasNoDevices) {
+		t.Fatalf("ImportCSV() error = %v, want %v", err, ErrCSVMapHasNoDevices)
 	}
 }
 

@@ -2,8 +2,11 @@ package database
 
 import (
 	"log"
+	"strings"
 
 	"skripsi-be/internal/models/entities"
+
+	"gorm.io/gorm"
 )
 
 func AutoMigrate() {
@@ -32,6 +35,9 @@ func AutoMigrate() {
 		&entities.Invoice{},
 		&entities.InvoiceItems{},
 		&entities.InvoicePendingReason{},
+		&entities.InvoicePayment{},
+		&entities.FieldPaymentClosing{},
+		&entities.CustomerIsolationLog{},
 
 		// Device
 		&entities.Device{},
@@ -109,6 +115,8 @@ func AutoMigrate() {
 		}
 	}
 
+	migrateInvoiceStatusColumn(db)
+
 	if err := db.AutoMigrate(&entities.DudeDeviceStatus{}); err != nil {
 		log.Printf("Failed to migrate The Dude device status table: %v", err)
 	}
@@ -125,4 +133,32 @@ func AutoMigrate() {
 	}
 
 	log.Println("Schema verification complete")
+}
+
+func migrateInvoiceStatusColumn(db *gorm.DB) {
+	if !db.Migrator().HasTable(&entities.Invoice{}) {
+		return
+	}
+
+	columnTypes, err := db.Migrator().ColumnTypes(&entities.Invoice{})
+	if err != nil {
+		log.Printf("Failed to inspect invoice status column: %v", err)
+		return
+	}
+
+	for _, column := range columnTypes {
+		if !strings.EqualFold(column.Name(), "status") {
+			continue
+		}
+		if !strings.HasPrefix(strings.ToLower(column.DatabaseTypeName()), "enum") {
+			return
+		}
+
+		if err := db.Exec("ALTER TABLE `invoices` MODIFY COLUMN `status` VARCHAR(191) NOT NULL").Error; err != nil {
+			log.Printf("Failed to migrate invoices.status to VARCHAR for partially paid invoices: %v", err)
+			return
+		}
+		log.Println("Migrated invoices.status from ENUM to VARCHAR")
+		return
+	}
 }

@@ -23,6 +23,7 @@ const environments = {
     // Note: If testing production MikroTik from localhost, use production config
     MIKROTIK_HOST: '103.148.18.52',
     MIKROTIK_PORT: '8252',
+    MIKROTIK_API_PORT: '8783',
     MIKROTIK_USERNAME: 'polije',
     MIKROTIK_PASSWORD: '2025',
     
@@ -51,6 +52,7 @@ const environments = {
     // Mikrotik Configuration - Production VPS
     MIKROTIK_HOST: '103.148.18.52',
     MIKROTIK_PORT: '8252',
+    MIKROTIK_API_PORT: '8783',
     MIKROTIK_USERNAME: 'polije',
     MIKROTIK_PASSWORD: '2025',
     
@@ -81,6 +83,5 @@ console.log(`✅ Switched to ${env} environment`);
 console.log(`📝 Created .env file for backend`);
 console.log('\nConfiguration:');
 console.log(`  - Database: ${environments[env].MYSQL_HOST}:${environments[env].MYSQL_PORT}/${environments[env].MYSQL_DATABASE}`);
-console.log(`  - Mikrotik: ${environments[env].MIKROTIK_HOST}:${environments[env].MIKROTIK_PORT}`);
+console.log(`  - MikroTik RouterOS API: ${environments[env].MIKROTIK_HOST}:${environments[env].MIKROTIK_API_PORT}`);
 console.log(`  - Server Port: ${environments[env].PORT}`);
-

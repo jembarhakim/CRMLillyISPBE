@@ -27,10 +27,6 @@ const client = new Client({
             '--no-zygote',
             '--disable-gpu'
         ]
-    },
-    webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2413.51.html',
     }
 });
 
@@ -83,15 +79,10 @@ client.on('auth_failure', (msg) => {
 // Disconnected
 client.on('disconnected', (reason) => {
     console.log('⚠️ [WA] Client disconnected:', reason);
-    console.log('[WA] Attempting to reconnect...');
     isReady = false;
     clientReady = false;
     qrCode = null;
-    // Try to reinitialize after a delay
-    setTimeout(() => {
-        console.log('[WA] Reinitializing client...');
-        client.initialize();
-    }, 5000);
+    console.log('[WA] The client disconnected. Restart the service after the browser has closed to reconnect safely.');
 });
 
 client.on('message_ack', async (message, ack) => {
@@ -128,7 +119,12 @@ client.on('message_ack', async (message, ack) => {
 // Initialize client
 console.log('[WA] Initializing WhatsApp client...');
 console.log('[WA] Checking for existing session...');
-client.initialize();
+client.initialize().catch((error) => {
+    isReady = false;
+    clientReady = false;
+    console.error('[WA] WhatsApp client initialization failed:', error);
+    console.error('[WA] Service is running, but sending is disabled until the browser initializes successfully.');
+});
 
 // Helper function to normalize phone number
 function normalizePhoneNumber(phone) {
@@ -191,17 +187,22 @@ app.post('/send-message', async (req, res) => {
 
         // Send message
         const result = await client.sendMessage(chatId, message);
+        const messageId = result?.id?._serialized || null;
 
-        console.log(`[WA] Message sent successfully to ${normalizedPhone}. Message ID: ${result.id._serialized}`);
+        if (messageId) {
+            console.log(`[WA] Message sent successfully to ${normalizedPhone}. Message ID: ${messageId}`);
+        } else {
+            console.warn(`[WA] Message send completed for ${normalizedPhone}, but WhatsApp returned no message ID.`);
+        }
 
         res.json({
             status: 'success',
-            message: 'Message sent successfully',
+            message: messageId ? 'Message sent successfully' : 'Message send completed without a message ID',
             data: {
                 to: normalizedPhone,
                 original_to: to,
                 message: message,
-                message_id: result.id._serialized,
+                message_id: messageId,
                 sent_at: new Date().toISOString()
             }
         });

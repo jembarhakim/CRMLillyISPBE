@@ -34,7 +34,7 @@ func MikroTikRoutes(app fiber.Router) {
 	app.Post("/execute", handler.ExecuteCommand)
 
 	// Hotspot IP binding management
-	app.Post("/hotspot/ip-binding/set-type", handler.SetHotspotIPBindingType)
+	app.Post("/hotspot/ip-binding/set-type", helpers.RequireRoles("ADMIN", "FINANCE"), handler.SetHotspotIPBindingType)
 	app.Get("/hotspot/ip-bindings", handler.GetHotspotIPBindings)
 	app.Get("/hotspot/ip-binding/:mac", handler.GetHotspotIPBindingByMAC)
 
@@ -48,4 +48,13 @@ func MikroTikRoutes(app fiber.Router) {
 	routerOS.Get("/status", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.Status)
 	routerOS.Get("/dude/devices", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListDudeDevices)
 	routerOS.Get("/dude/services", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListDudeServices)
+	routerOS.Get("/hotspot/users", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListHotspotUsers)
+	routerOS.Get("/hotspot/profiles", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListHotspotUserProfiles)
+	routerOS.Get("/hotspot/active", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ListHotspotActiveSessions)
+	routerOS.Post("/hotspot/device-bindings/resolve", helpers.RequireRoles("ADMIN", "CUSTOMER_SERVICE"), routerOSHandler.ResolveHotspotDeviceBindings)
+	routerOS.Post("/hotspot/device-bindings/set-type", helpers.RequireRoles("ADMIN", "FINANCE"), routerOSHandler.SetHotspotDeviceBindingType)
+	routerOS.Post("/hotspot/users", helpers.RequireRoles("ADMIN", "FINANCE"), routerOSHandler.CreateHotspotUser)
+	routerOS.Put("/hotspot/users/:name", helpers.RequireRoles("ADMIN", "FINANCE"), routerOSHandler.UpdateHotspotUser)
+	routerOS.Delete("/hotspot/users/:name", helpers.RequireRoles("ADMIN"), routerOSHandler.DeleteHotspotUser)
+	routerOS.Post("/hotspot/active/:name/kick", helpers.RequireRoles("ADMIN", "FINANCE"), routerOSHandler.KickHotspotUser)
 }

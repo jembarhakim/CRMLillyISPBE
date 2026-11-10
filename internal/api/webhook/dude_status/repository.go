@@ -12,7 +12,15 @@ import (
 type StatusRepository interface {
 	Upsert(DeviceStatus) error
 	List() ([]entities.DudeDeviceStatus, error)
+	ListImported() ([]entities.DudeDeviceStatus, error)
+	ImportDevices([]entities.DudeDeviceStatus) (ImportResult, error)
 	UpdateDetails(string, UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error)
+}
+
+type ImportResult struct {
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+	Total   int `json:"total"`
 }
 
 type gormStatusRepository struct {
@@ -47,6 +55,49 @@ func (r *gormStatusRepository) List() ([]entities.DudeDeviceStatus, error) {
 	var devices []entities.DudeDeviceStatus
 	err := r.db.Order("name ASC").Find(&devices).Error
 	return devices, err
+}
+
+func (r *gormStatusRepository) ListImported() ([]entities.DudeDeviceStatus, error) {
+	var devices []entities.DudeDeviceStatus
+	err := r.db.Where("map_name <> ''").Order("name ASC").Find(&devices).Error
+	return devices, err
+}
+
+func (r *gormStatusRepository) ImportDevices(devices []entities.DudeDeviceStatus) (ImportResult, error) {
+	result := ImportResult{Total: len(devices)}
+	if len(devices) == 0 {
+		return result, nil
+	}
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		addresses := make([]string, 0, len(devices))
+		for _, device := range devices {
+			addresses = append(addresses, device.IPAddress)
+		}
+
+		var existing []entities.DudeDeviceStatus
+		if err := tx.Select("ip_address").Where("ip_address IN ?", addresses).Find(&existing).Error; err != nil {
+			return err
+		}
+		result.Updated = len(existing)
+		result.Created = len(devices) - result.Updated
+
+		now := time.Now()
+		for i := range devices {
+			devices[i].LastSeen = now
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "ip_address"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"name",
+				"map_name",
+				"status",
+				"last_seen",
+				"updated_at",
+			}),
+		}).Create(&devices).Error
+	})
+	return result, err
 }
 
 func (r *gormStatusRepository) UpdateDetails(id string, details UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error) {
