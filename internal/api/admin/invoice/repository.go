@@ -1,7 +1,6 @@
 package invoice
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"skripsi-be/internal/models/entities"
 	"skripsi-be/internal/services"
@@ -19,7 +17,6 @@ type AdminInvoiceRepositoryInterface interface {
 	FindAdminInvoiceRepository() ([]entities.Invoice, error)
 	CreateAdminInvoiceRepository(request CreateAdminInvoiceRequest) (entities.Invoice, error)
 	FindByIdAdminInvoiceRepository(request IdAdminInvoiceRequest) (entities.Invoice, error)
-	FindInvoicePaymentHistoryRepository(request IdAdminInvoiceRequest) ([]entities.InvoicePayment, error)
 	UpdateAdminInvoiceRepository(request UpdateAdminInvoiceRequest) (entities.Invoice, error)
 	UpdateStatusAdminInvoiceRepository(request UpdateStatusAdminInvoiceRequest) (entities.Invoice, error)
 	DeleteAdminInvoiceRepository(request IdAdminInvoiceRequest) (entities.Invoice, error)
@@ -35,34 +32,8 @@ type AdminInvoiceRepositoryStruct struct {
 	db *gorm.DB
 }
 
-func EnqueuePaidInvoiceActions(db *gorm.DB, invoice entities.Invoice) {
-	repository := AdminInvoiceRepositoryStruct{db: db}
-	go repository.enforceMikroTikForPaidInvoice(invoice)
-	if _, err := services.EnqueueRouterJob(db, invoice.ID, services.RouterActionSetUnpaidScheduler, 0); err != nil {
-		log.Printf("[paid-invoice] failed to enqueue unpaid scheduler update for invoice %s: %v", invoice.ID, err)
-	}
-	if _, err := services.EnqueueRouterJob(db, invoice.ID, services.RouterActionRunOpenScript, 0); err != nil {
-		log.Printf("[paid-invoice] failed to enqueue open script for invoice %s: %v", invoice.ID, err)
-	}
-}
-
 func NewAdminInvoiceRepository(db *gorm.DB) *AdminInvoiceRepositoryStruct {
 	return &AdminInvoiceRepositoryStruct{db}
-}
-
-func (r AdminInvoiceRepositoryStruct) totalPaid(tx *gorm.DB, invoiceID string) (int64, error) {
-	var transactionTotal, fieldPaymentTotal int64
-	if err := tx.Model(&entities.Transaction{}).
-		Where("invoice_id = ?", invoiceID).
-		Select("COALESCE(SUM(amount), 0)").Scan(&transactionTotal).Error; err != nil {
-		return 0, err
-	}
-	if err := tx.Model(&entities.InvoicePayment{}).
-		Where("invoice_id = ? AND payment_type = ? AND closing_id IS NULL", invoiceID, "field_cash").
-		Select("COALESCE(SUM(amount), 0)").Scan(&fieldPaymentTotal).Error; err != nil {
-		return 0, err
-	}
-	return transactionTotal + fieldPaymentTotal, nil
 }
 
 func (r AdminInvoiceRepositoryStruct) FindAdminInvoiceRepository() ([]entities.Invoice, error) {
@@ -78,10 +49,8 @@ func (r AdminInvoiceRepositoryStruct) FindAdminInvoiceRepository() ([]entities.I
 
 	// For each invoice, calculate total paid from transactions and load pending reason
 	for i := range invoices {
-		totalPaid, err := r.totalPaid(r.db, invoices[i].ID)
-		if err != nil {
-			return invoices, err
-		}
+		var totalPaid int64
+		r.db.Model(&entities.Transaction{}).Where("invoice_id = ?", invoices[i].ID).Select("COALESCE(SUM(amount), 0)").Scan(&totalPaid)
 
 		// Create a virtual transaction object to hold total paid
 		if totalPaid > 0 {
@@ -91,7 +60,7 @@ func (r AdminInvoiceRepositoryStruct) FindAdminInvoiceRepository() ([]entities.I
 		}
 
 		// Load pending reason if invoice is pending
-		if invoices[i].Status == entities.InvoiceStatusPending || invoices[i].Status == entities.InvoiceStatusPartiallyPaid {
+		if invoices[i].Status == entities.InvoiceStatusPending {
 			var pendingReason entities.InvoicePendingReason
 			err := r.db.Where("invoice_id = ?", invoices[i].ID).Order("created_at DESC").First(&pendingReason).Error
 			if err == nil {
@@ -104,15 +73,6 @@ func (r AdminInvoiceRepositoryStruct) FindAdminInvoiceRepository() ([]entities.I
 	return invoices, nil
 }
 
-func (r AdminInvoiceRepositoryStruct) FindInvoicePaymentHistoryRepository(request IdAdminInvoiceRequest) ([]entities.InvoicePayment, error) {
-	var payments []entities.InvoicePayment
-	err := r.db.Preload("Collector").
-		Where("invoice_id = ?", request.Id).
-		Order("created_at DESC").
-		Find(&payments).Error
-	return payments, err
-}
-
 func (r AdminInvoiceRepositoryStruct) FindByIdAdminInvoiceRepository(request IdAdminInvoiceRequest) (entities.Invoice, error) {
 	invoice := entities.Invoice{}
 	// The custom NullableTimeFromVarchar scanner will automatically handle VARCHAR to time.Time conversion
@@ -122,6 +82,7 @@ func (r AdminInvoiceRepositoryStruct) FindByIdAdminInvoiceRepository(request IdA
 	if tx.Error != nil {
 		return invoice, tx.Error
 	}
+
 	// Calculate total amount from invoice items if not set or incorrect
 	if len(invoice.InvoiceItems) > 0 {
 		var totalAmount int64 = 0
@@ -138,10 +99,8 @@ func (r AdminInvoiceRepositoryStruct) FindByIdAdminInvoiceRepository(request IdA
 	}
 
 	// Calculate total paid from all transactions for this invoice
-	totalPaid, err := r.totalPaid(r.db, request.Id)
-	if err != nil {
-		return invoice, err
-	}
+	var totalPaid int64
+	r.db.Model(&entities.Transaction{}).Where("invoice_id = ?", request.Id).Select("COALESCE(SUM(amount), 0)").Scan(&totalPaid)
 
 	// Create a virtual transaction object to hold total paid
 	if totalPaid > 0 {
@@ -151,7 +110,7 @@ func (r AdminInvoiceRepositoryStruct) FindByIdAdminInvoiceRepository(request IdA
 	}
 
 	// Load pending reason if invoice is pending
-	if invoice.Status == entities.InvoiceStatusPending || invoice.Status == entities.InvoiceStatusPartiallyPaid {
+	if invoice.Status == entities.InvoiceStatusPending {
 		var pendingReason entities.InvoicePendingReason
 		err := r.db.Where("invoice_id = ?", request.Id).Order("created_at DESC").First(&pendingReason).Error
 		if err == nil {
@@ -298,9 +257,9 @@ func (r AdminInvoiceRepositoryStruct) CreateAdminInvoiceRepository(request Creat
 			return
 		}
 
-		router := services.GetSharedRouterOSAPI()
-		if router == nil || !router.IsConnected() {
-			log.Printf("[mikrotik] skip: RouterOS API not connected (invoice=%s status=%s)", inv.ID, string(inv.Status))
+		svc := services.GetSharedMikroTikService()
+		if svc == nil || !svc.IsConnected() {
+			log.Printf("[mikrotik] skip: not connected (invoice=%s status=%s)", inv.ID, string(inv.Status))
 			return
 		}
 		// Fetch customer's network devices to get MACs
@@ -317,16 +276,23 @@ func (r AdminInvoiceRepositoryStruct) CreateAdminInvoiceRepository(request Creat
 			}
 			switch inv.Status {
 			case entities.InvoiceStatusPaid:
-				if err := router.SetHotspotIPBindingType(mac, "bypassed"); err != nil {
-					log.Printf("[mikrotik] failed to bypass Hotspot binding mac=%s: %v", mac, err)
+				// bypass binding and mark script comment sudahbayar
+				cmd1 := fmt.Sprintf("/ip hotspot ip-binding set [find mac-address=%s] type=byp", mac)
+				log.Printf("[mikrotik] exec: %s", cmd1)
+				if out, err := svc.ExecuteCommand(cmd1); err != nil {
+					log.Printf("[mikrotik] error: %v", err)
 				} else {
-					log.Printf("[mikrotik] bypassed Hotspot binding mac=%s", mac)
+					log.Printf("[mikrotik] out: %s", strings.TrimSpace(out))
 				}
+				// optional: set script comment if script exists
 			case entities.InvoiceStatusUnpaid:
-				if err := router.SetHotspotIPBindingDisabled(mac, true); err != nil {
-					log.Printf("[mikrotik] failed to disable Hotspot binding mac=%s: %v", mac, err)
+				// disable binding and mark belumbayar
+				cmd2 := fmt.Sprintf("/ip hotspot ip-binding set [find mac-address=%s] disabled=yes", mac)
+				log.Printf("[mikrotik] exec: %s", cmd2)
+				if out, err := svc.ExecuteCommand(cmd2); err != nil {
+					log.Printf("[mikrotik] error: %v", err)
 				} else {
-					log.Printf("[mikrotik] disabled Hotspot binding mac=%s", mac)
+					log.Printf("[mikrotik] out: %s", strings.TrimSpace(out))
 				}
 			case entities.InvoiceStatusPending:
 				// keep bypassed; no change
@@ -514,9 +480,6 @@ func (r AdminInvoiceRepositoryStruct) UpdateAdminInvoiceRepository(request Updat
 	if tx.Error != nil {
 		return invoice, tx.Error
 	}
-	if request.Status != nil && *request.Status == string(entities.InvoiceStatusPaid) {
-		return invoice, fmt.Errorf("record the payment with proof before marking this invoice paid")
-	}
 
 	// Update only the invoice fields, not associations
 	updates := map[string]interface{}{
@@ -632,59 +595,46 @@ func (r AdminInvoiceRepositoryStruct) UpdateStatusAdminInvoiceRepository(request
 		return invoice, tx.Error
 	}
 
-	if request.Status == "paid" {
-		txDb := r.db.Begin()
-		if txDb.Error != nil {
-			return invoice, txDb.Error
-		}
-		var lockedInvoice entities.Invoice
-		if err := txDb.Preload("Customer").Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&lockedInvoice, "id = ?", request.Id).Error; err != nil {
-			txDb.Rollback()
-			return invoice, err
-		}
-		totalPaid, err := r.totalPaid(txDb, lockedInvoice.ID)
-		if err != nil {
-			txDb.Rollback()
-			return invoice, err
-		}
-		amountDue := lockedInvoice.Amount - totalPaid
-		if amountDue > 0 {
-			txDb.Rollback()
-			return invoice, fmt.Errorf("record the payment with proof before marking this invoice paid")
-		}
-		if err := txDb.Model(&lockedInvoice).Updates(map[string]interface{}{
-			"status": entities.InvoiceStatusPaid,
-			"link":   "",
-		}).Error; err != nil {
-			txDb.Rollback()
-			return invoice, err
-		}
-		if err := txDb.Commit().Error; err != nil {
-			return invoice, err
-		}
-	} else {
-		tx = r.db.Model(&invoice).Omit("InvoiceItems").Updates(map[string]interface{}{
-			"status": request.Status,
-			"link":   "",
-		})
-		if tx.Error != nil {
-			return invoice, tx.Error
-		}
-		if request.Status == "pending" && request.AccountID != "" && request.Method != "" {
+	// Clear previous error link and update status only (explicitly omit InvoiceItems to prevent duplicates)
+	tx = r.db.Model(&invoice).Omit("InvoiceItems").Updates(map[string]interface{}{
+		"status": request.Status,
+		"link":   "",
+	})
+	if tx.Error != nil {
+		return invoice, tx.Error
+	}
+
+	// Reload the invoice to get updated data (read-only, no save operations)
+	r.db.Preload("Customer").Preload("Customer.Area").Preload("InvoiceItems").Preload("InvoiceItems.Invoice").Preload("Transaction").
+		First(&invoice, "id = ?", request.Id)
+
+	// Trigger MikroTik enforcement based on status (synchronous for unpaid to bubble errors)
+	if request.Status == "paid" || request.Status == "pending" {
+		log.Printf("[UpdateStatus] Status is %s, checking for transaction creation", request.Status)
+		// Only create transaction if AccountID is provided
+		if request.AccountID != "" && request.Method != "" {
+			log.Printf("[UpdateStatus] AccountID and Method provided, proceeding with transaction creation")
+			// Prevent duplicate transaction for the same invoice
 			var existingTx int64
-			if err := r.db.Model(&entities.Transaction{}).Where("invoice_id = ?", invoice.ID).Count(&existingTx).Error; err != nil {
-				return invoice, err
-			}
+			r.db.Model(&entities.Transaction{}).Where("invoice_id = ?", invoice.ID).Count(&existingTx)
 			if existingTx == 0 {
-				txDb := r.db.Begin()
-				if txDb.Error != nil {
-					return invoice, txDb.Error
+				// Determine type_cash based on customer type
+				// Note: Database only supports 'internet' and 'cash_flow'
+				// Use 'cash_flow' for collaborators, 'internet' for regular customers
+				typeCash := entities.TransactionsTypeCashInternet
+				if invoice.Customer.IsCollaborator == "yes" && invoice.Customer.IsInternet != "yes" {
+					typeCash = entities.TransactionsTypeCashCollaborator // Use cash_flow instead of collaborator
 				}
-				transaction := entities.Transaction{
+
+				// Start transaction for atomicity
+				txDb := r.db.Begin()
+
+				// Create transaction record
+				txObj := entities.Transaction{
+					ID:          uuid.New().String(),
 					AccountID:   request.AccountID,
 					InvoiceID:   invoice.ID,
-					TypeCash:    entities.TransactionsTypeCashInternet,
+					TypeCash:    typeCash,
 					TypeInOut:   entities.TransactionsTypeInOutIn,
 					Date:        time.Now().Format("2006-01-02"),
 					Description: fmt.Sprintf("Payment for invoice %s", invoice.ID),
@@ -694,34 +644,39 @@ func (r AdminInvoiceRepositoryStruct) UpdateStatusAdminInvoiceRepository(request
 					CreatedAt:   time.Now(),
 					UpdatedAt:   time.Now(),
 				}
-				if err := txDb.Create(&transaction).Error; err != nil {
+				if err := txDb.Create(&txObj).Error; err != nil {
 					txDb.Rollback()
-					return invoice, fmt.Errorf("failed to record invoice payment: %w", err)
-				}
-				accountUpdate := txDb.Model(&entities.Accounts{}).
-					Where("id = ?", request.AccountID).
-					UpdateColumn("saldo", gorm.Expr("saldo + ?", invoice.Amount))
-				if accountUpdate.Error != nil {
-					txDb.Rollback()
-					return invoice, fmt.Errorf("failed to update account balance: %w", accountUpdate.Error)
-				}
-				if accountUpdate.RowsAffected == 0 {
-					txDb.Rollback()
-					return invoice, fmt.Errorf("account not found")
-				}
-				if err := txDb.Commit().Error; err != nil {
-					return invoice, err
+					log.Printf("[transaction] failed to create transaction for invoice %s: %v", invoice.ID, err)
+				} else {
+					// Update account saldo (debit = increase balance)
+					var account entities.Accounts
+					if err := txDb.First(&account, "id = ?", request.AccountID).Error; err != nil {
+						txDb.Rollback()
+						log.Printf("[transaction] failed to find account %s: %v", request.AccountID, err)
+					} else {
+						account.Saldo = account.Saldo + invoice.Amount
+						if err := txDb.Save(&account).Error; err != nil {
+							txDb.Rollback()
+							log.Printf("[transaction] failed to update account saldo: %v", err)
+						} else {
+							txDb.Commit()
+							log.Printf("[transaction] created transaction %s and updated account %s saldo to %d", txObj.ID, account.ID, account.Saldo)
+							// Reload invoice to get the linked transaction
+							r.db.Preload("Transaction").First(&invoice, "id = ?", invoice.ID)
+						}
+					}
 				}
 			}
+		} else {
+			log.Printf("[UpdateStatus] AccountID or Method not provided - AccountID: '%s', Method: '%s'", request.AccountID, request.Method)
 		}
 	}
-
-	if err := r.db.Preload("Customer").Preload("Customer.Area").Preload("InvoiceItems").Preload("InvoiceItems.Invoice").Preload("Transaction").
-		First(&invoice, "id = ?", request.Id).Error; err != nil {
-		return invoice, err
-	}
 	if request.Status == "paid" {
-		EnqueuePaidInvoiceActions(r.db, invoice)
+		go r.enforceMikroTikForPaidInvoice(invoice)
+		// For PAID, still ensure scheduler start-date gets updated to the invoice due_date
+		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionSetUnpaidScheduler, 0)
+		// Also run customer-specific open_ script
+		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionRunOpenScript, 0)
 	} else if request.Status == "unpaid" {
 		// Enqueue unpaid scheduler update instead of synchronous call
 		_, _ = services.EnqueueRouterJob(r.db, invoice.ID, services.RouterActionSetUnpaidScheduler, 0)
@@ -863,126 +818,107 @@ func (r AdminInvoiceRepositoryStruct) FindNewestInvoicePerCustomer() ([]entities
 }
 
 func (r AdminInvoiceRepositoryStruct) ProcessPartialPaymentRepository(request PartialPaymentRequest) (entities.Invoice, error) {
+	// Start transaction
 	tx := r.db.Begin()
-	if tx.Error != nil {
-		return entities.Invoice{}, tx.Error
-	}
 
+	// Get invoice (no customer preload to avoid selecting legacy customer.product_id column)
 	invoice := entities.Invoice{}
-	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&invoice, "id = ?", request.Id).Error
+	err := tx.Preload("InvoiceItems").First(&invoice, "id = ?", request.Id).Error
 	if err != nil {
 		tx.Rollback()
 		return invoice, err
 	}
 
+	// Validate invoice status (should be pending or unpaid)
 	if invoice.Status == entities.InvoiceStatusPaid {
 		tx.Rollback()
 		return invoice, fmt.Errorf("invoice is already fully paid")
 	}
 
-	currentTotalPaid, err := r.totalPaid(tx, request.Id)
-	if err != nil {
-		tx.Rollback()
-		return invoice, err
-	}
+	// Calculate current total paid from existing transactions
+	var currentTotalPaid int64
+	tx.Model(&entities.Transaction{}).Where("invoice_id = ?", request.Id).Select("COALESCE(SUM(amount), 0)").Scan(&currentTotalPaid)
+
+	// Calculate new total paid
 	newTotalPaid := currentTotalPaid + request.Amount
+
+	// Validate payment amount doesn't exceed invoice amount
 	if newTotalPaid > invoice.Amount {
 		tx.Rollback()
 		return invoice, fmt.Errorf("payment amount exceeds outstanding balance")
 	}
 
+	// Create payment transaction
 	transaction := entities.Transaction{
-		AccountID:   request.AccountID,
+		AccountID:   "b82074e7-7acb-40e2-ab33-014f4b09c1f8", // Default account ID
 		InvoiceID:   request.Id,
 		TypeCash:    entities.TransactionsTypeCashInternet,
 		TypeInOut:   entities.TransactionsTypeInOutIn,
-		Description: fmt.Sprintf("Manual payment for invoice %s", request.Id),
+		Description: fmt.Sprintf("Partial payment for invoice %s", request.Id),
 		Amount:      request.Amount,
 		Category:    "partial_payment",
-		Method:      request.Method,
+		Method:      "manual",
 	}
+
+	// If a reason/note was provided, append it to description
 	if request.Reason != nil && *request.Reason != "" {
 		transaction.Description = fmt.Sprintf("%s | Reason: %s", transaction.Description, *request.Reason)
 	}
 
-	if err := tx.Create(&transaction).Error; err != nil {
+	err = tx.Create(&transaction).Error
+	if err != nil {
 		tx.Rollback()
 		return invoice, err
 	}
 
+	// Update invoice status based on payment
 	var newStatus entities.InvoiceStatus
 	if newTotalPaid >= invoice.Amount {
 		newStatus = entities.InvoiceStatusPaid
 	} else {
-		newStatus = entities.InvoiceStatusPartiallyPaid
+		newStatus = entities.InvoiceStatusPending
 	}
 
-	payment := entities.InvoicePayment{
-		InvoiceID:   request.Id,
-		Amount:      request.Amount,
-		PaymentType: "manual",
-		Method:      request.Method,
-		ReceiptPath: request.ReceiptPath,
-		CollectedBy: request.UserID,
-	}
-	payment.TransactionID = &transaction.ID
-	if request.Reason != nil {
-		payment.Reason = *request.Reason
-	}
-	if err := tx.Create(&payment).Error; err != nil {
+	err = tx.Model(&invoice).Update("status", newStatus).Error
+	if err != nil {
 		tx.Rollback()
 		return invoice, err
 	}
 
-	accountUpdate := tx.Model(&entities.Accounts{}).
-		Where("id = ?", request.AccountID).
-		UpdateColumn("saldo", gorm.Expr("saldo + ?", request.Amount))
-	if accountUpdate.Error != nil {
-		tx.Rollback()
-		return invoice, fmt.Errorf("failed to update account balance: %w", accountUpdate.Error)
-	}
-	if accountUpdate.RowsAffected == 0 {
-		tx.Rollback()
-		return invoice, fmt.Errorf("account not found")
-	}
-
-	if newStatus == entities.InvoiceStatusPartiallyPaid && request.Reason != nil && *request.Reason != "" {
+	// If invoice becomes pending and reason was provided, save it to invoice_pending_reasons
+	if newStatus == entities.InvoiceStatusPending && request.Reason != nil && *request.Reason != "" {
+		// Check if reason already exists for this invoice
 		var existingReason entities.InvoicePendingReason
 		err := tx.Where("invoice_id = ?", request.Id).First(&existingReason).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+
+		if err != nil {
+			// No existing reason, create new one
 			pendingReason := entities.InvoicePendingReason{
 				ID:        uuid.New().String(),
 				InvoiceID: request.Id,
 				Reason:    *request.Reason,
 			}
-			if err := tx.Create(&pendingReason).Error; err != nil {
+			err = tx.Create(&pendingReason).Error
+			if err != nil {
 				tx.Rollback()
 				return invoice, fmt.Errorf("failed to save pending reason: %v", err)
 			}
-		} else if err != nil {
-			tx.Rollback()
-			return invoice, err
-		} else if err := tx.Model(&existingReason).Update("reason", *request.Reason).Error; err != nil {
-			tx.Rollback()
-			return invoice, fmt.Errorf("failed to update pending reason: %v", err)
+		} else {
+			// Update existing reason
+			err = tx.Model(&existingReason).Update("reason", *request.Reason).Error
+			if err != nil {
+				tx.Rollback()
+				return invoice, fmt.Errorf("failed to update pending reason: %v", err)
+			}
 		}
 	}
 
-	if err := tx.Model(&invoice).Update("status", newStatus).Error; err != nil {
-		tx.Rollback()
-		return invoice, err
-	}
-	if err := tx.Commit().Error; err != nil {
-		return invoice, err
-	}
+	// Commit transaction
+	tx.Commit()
 
+	// Reload invoice with updated data
 	r.db.Preload("Customer").Preload("Customer.Area").Preload("InvoiceItems").Preload("Transaction").
 		First(&invoice, "id = ?", request.Id)
-	invoice.Status = newStatus
-	invoice.Transaction.Amount = newTotalPaid
-	if newStatus == entities.InvoiceStatusPaid {
-		EnqueuePaidInvoiceActions(r.db, invoice)
-	}
 
 	return invoice, nil
 }
@@ -1101,9 +1037,9 @@ func (r AdminInvoiceRepositoryStruct) enforceMikroTikForPaidInvoice(invoice enti
 		return
 	}
 
-	router := services.GetSharedRouterOSAPI()
-	if router == nil || !router.IsConnected() {
-		log.Printf("[enforce-paid] RouterOS API not connected; skipping invoice %s", invoice.ID)
+	mt := services.GetSharedMikroTikService()
+	if mt == nil || !mt.IsConnected() {
+		log.Printf("[enforce-paid] MikroTik not connected; skipping invoice %s", invoice.ID)
 		return
 	}
 
@@ -1126,7 +1062,7 @@ func (r AdminInvoiceRepositoryStruct) enforceMikroTikForPaidInvoice(invoice enti
 		}
 		mac := *d.MacAddress
 
-		if err := router.SetHotspotIPBindingType(mac, "bypassed"); err != nil {
+		if err := mt.SetHotspotIPBindingType(mac, "bypassed"); err != nil {
 			log.Printf("[enforce-paid] set bypassed failed mac=%s: %v", mac, err)
 		} else {
 			changed++
