@@ -8,3 +8,6 @@ whatsapp-session/
 
 
 
+
+.wwebjs_cache/
+.wwebjs_auth/
