@@ -1,5 +1,4 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
 const express = require('express');
 const cors = require('cors');
 
@@ -39,23 +38,18 @@ client.on('loading_screen', (percent, message) => {
     console.log(`[WA] Loading: ${percent}% - ${message}`);
 });
 
-// QR Code generation
+// QR Code generation (QR hanya disimpan, ditampilkan di dashboard, tidak dicetak ke terminal)
 client.on('qr', (qr) => {
-    console.log('\n═══════════════════════════════════════════════════════');
-    console.log('[WA] QR CODE RECEIVED - SCAN WITH WHATSAPP APP');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('\n📱 INSTRUCTIONS:');
-    console.log('1. Open WhatsApp on your PHONE (not camera app)');
-    console.log('2. Go to: Settings → Linked Devices');
-    console.log('3. Tap: "Link a Device"');
-    console.log('4. Point your phone camera at the QR code below');
-    console.log('5. Wait for "Client is ready!" message\n');
-    console.log('═══════════════════════════════════════════════════════\n');
-    qrcode.generate(qr, { small: true });
-    console.log('\n═══════════════════════════════════════════════════════\n');
+    console.log('[WA] QR siap. Buka halaman WhatsApp Notifications di dashboard untuk scan.');
     qrCode = qr;
     isReady = false;
     clientReady = false;
+});
+
+// QR dibuang begitu sudah di-scan, supaya dashboard tidak menampilkan QR basi
+client.on('authenticated', () => {
+    console.log('[WA] Authenticated.');
+    qrCode = null;
 });
 
 // Authentication successful
@@ -130,22 +124,22 @@ client.initialize().catch((error) => {
 function normalizePhoneNumber(phone) {
     // Remove all whitespace and non-digit characters except +
     phone = phone.trim().replace(/[\s\-]/g, '');
-    
+
     // Remove + if present
     if (phone.startsWith('+')) {
         phone = phone.substring(1);
     }
-    
+
     // If starts with 0, replace with 62 (Indonesia country code)
     if (phone.startsWith('0')) {
         phone = '62' + phone.substring(1);
     }
-    
+
     // If doesn't start with 62, add it (assuming Indonesian numbers)
     if (!phone.startsWith('62') && phone.length >= 9) {
         phone = '62' + phone;
     }
-    
+
     return phone;
 }
 
@@ -222,13 +216,13 @@ app.get('/status', (req, res) => {
         status: isReady ? 'ready' : 'not_ready',
         clientReady: clientReady,
         qr_needed: !isReady && !clientReady,
-        message: isReady ? 'WhatsApp is ready to send messages' : 
-                 qrCode ? 'Please scan the QR code shown in the terminal' : 
-                 'Initializing WhatsApp client...'
+        message: isReady ? 'WhatsApp is ready to send messages' :
+            qrCode ? 'Scan QR code di dashboard untuk menghubungkan WhatsApp' :
+                'Initializing WhatsApp client...'
     });
 });
 
-// Get QR code (for debugging)
+// Get QR code (dipakai dashboard lewat backend)
 app.get('/qr', (req, res) => {
     if (qrCode) {
         res.json({

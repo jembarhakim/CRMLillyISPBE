@@ -12,6 +12,7 @@ func RegisterAdminRoutes(router fiber.Router, db *gorm.DB) {
 	router.Use(helpers.VerifyToken, helpers.RequireRoles("ADMIN", "FINANCE", "CUSTOMER_SERVICE"))
 
 	router.Get("/summary", handler.Summary)
+	router.Get("/whatsapp/connection", handler.WhatsAppConnection)
 	router.Get("/templates", handler.Templates)
 	router.Post("/templates/preview", handler.PreviewTemplate)
 	router.Post("/templates", handler.SaveTemplate)

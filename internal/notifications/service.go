@@ -249,8 +249,7 @@ func (s *Service) ListPreferences(search string) ([]PreferenceView, error) {
 	var preferences []PreferenceView
 	query := s.db.Table("customer AS c").
 		Select("c.id AS customer_id, c.name AS customer_name, c.phone, COALESCE(p.invoice_reminders_enabled, 1) AS invoice_reminders_enabled").
-		Joins("LEFT JOIN notification_preferences AS p ON p.customer_id = c.id").
-		Where("c.phone <> '' AND c.deleted_at IS NULL").
+		Joins("LEFT JOIN notification_preferences AS p ON p.customer_id = c.id COLLATE utf8mb4_0900_ai_ci").		Where("c.phone <> '' AND c.deleted_at IS NULL").
 		Order("c.name")
 	if search != "" {
 		query = query.Where("c.name LIKE ? OR c.phone LIKE ?", "%"+search+"%", "%"+search+"%")

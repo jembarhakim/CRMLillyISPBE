@@ -1,9 +1,9 @@
 package notificationsapi
 
 import (
-	"crypto/subtle"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
