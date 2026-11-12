@@ -130,6 +130,10 @@ func AutoMigrate() {
 
 	if err := db.AutoMigrate(&entities.DudeDeviceStatus{}); err != nil {
 		log.Printf("Failed to migrate The Dude device status table: %v", err)
+	} else if err := db.Model(&entities.DudeDeviceStatus{}).
+		Where("last_down_at IS NULL AND LOWER(status) IN ?", []string{"down", "offline"}).
+		UpdateColumn("last_down_at", gorm.Expr("last_seen")).Error; err != nil {
+		log.Printf("Failed to backfill last-down timestamps for The Dude devices: %v", err)
 	}
 
 	// Additive column migrations for existing tables.

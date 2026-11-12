@@ -8,20 +8,21 @@ import (
 )
 
 type DudeDeviceStatus struct {
-	ID        string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
-	Name      string    `json:"device_name" gorm:"type:varchar(255);not null"`
-	IPAddress string    `json:"ip_address" gorm:"type:varchar(45);not null;uniqueIndex"`
-	MapName   string    `json:"map_name" gorm:"type:varchar(255);index"`
-	Status    string    `json:"status" gorm:"type:varchar(100);not null"`
-	UserName  string    `json:"user_name" gorm:"type:varchar(255)"`
-	UserPhone string    `json:"user_phone" gorm:"type:varchar(100)"`
-	Address   string    `json:"address" gorm:"type:text"`
-	Notes     string    `json:"notes" gorm:"type:text"`
-	Latitude  *float64  `json:"latitude" gorm:"type:double"`
-	Longitude *float64  `json:"longitude" gorm:"type:double"`
-	LastSeen  time.Time `json:"last_seen"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string     `json:"id" gorm:"primaryKey;type:varchar(36)"`
+	Name       string     `json:"device_name" gorm:"type:varchar(255);not null"`
+	IPAddress  string     `json:"ip_address" gorm:"type:varchar(45);not null;uniqueIndex"`
+	MapName    string     `json:"map_name" gorm:"type:varchar(255);index"`
+	Status     string     `json:"status" gorm:"type:varchar(100);not null"`
+	UserName   string     `json:"user_name" gorm:"type:varchar(255)"`
+	UserPhone  string     `json:"user_phone" gorm:"type:varchar(100)"`
+	Address    string     `json:"address" gorm:"type:text"`
+	Notes      string     `json:"notes" gorm:"type:text"`
+	Latitude   *float64   `json:"latitude" gorm:"type:double"`
+	Longitude  *float64   `json:"longitude" gorm:"type:double"`
+	LastSeen   time.Time  `json:"last_seen"`
+	LastDownAt *time.Time `json:"last_down_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 func (d *DudeDeviceStatus) BeforeCreate(tx *gorm.DB) error {

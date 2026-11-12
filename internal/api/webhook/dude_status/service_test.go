@@ -54,6 +54,37 @@ func (b *fakeStatusBroadcaster) Broadcast(status DeviceStatus) error {
 	return b.err
 }
 
+func TestLastDownAtForImport(t *testing.T) {
+	now := time.Date(2026, time.November, 12, 8, 0, 0, 0, time.UTC)
+	previousDownAt := now.Add(-time.Hour)
+	tests := []struct {
+		name           string
+		status         string
+		previousStatus string
+		previousDownAt *time.Time
+		want           *time.Time
+	}{
+		{name: "new device imported down", status: "down", want: &now},
+		{name: "device changes from up to down", status: "down", previousStatus: "up", previousDownAt: &previousDownAt, want: &now},
+		{name: "reimport while still down preserves time", status: "down", previousStatus: "down", previousDownAt: &previousDownAt, want: &previousDownAt},
+		{name: "up status clears last down time", status: "up", previousStatus: "down", previousDownAt: &previousDownAt},
+		{name: "online status clears last down time", status: "online", previousStatus: "down", previousDownAt: &previousDownAt},
+		{name: "new device imported up", status: "up"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := lastDownAtForImport(test.status, test.previousStatus, test.previousDownAt, now)
+			if (got == nil) != (test.want == nil) {
+				t.Fatalf("lastDownAtForImport() = %v, want %v", got, test.want)
+			}
+			if got != nil && !got.Equal(*test.want) {
+				t.Fatalf("lastDownAtForImport() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestReceiveStatusPersistsAndBroadcastsTrimmedPayload(t *testing.T) {
 	repository := &fakeStatusRepository{}
 	broadcaster := &fakeStatusBroadcaster{}
@@ -77,6 +108,19 @@ func TestReceiveStatusPersistsAndBroadcastsTrimmedPayload(t *testing.T) {
 	}
 	if broadcaster.calls != 1 || broadcaster.status != want {
 		t.Fatalf("broadcaster got (%d calls, %#v), want (1 call, %#v)", broadcaster.calls, broadcaster.status, want)
+	}
+}
+
+func TestIsDownStatus(t *testing.T) {
+	for _, status := range []string{"down", "DOWN", " offline "} {
+		if !isDownStatus(status) {
+			t.Errorf("isDownStatus(%q) = false, want true", status)
+		}
+	}
+	for _, status := range []string{"up", "partially down", "unknown"} {
+		if isDownStatus(status) {
+			t.Errorf("isDownStatus(%q) = true, want false", status)
+		}
 	}
 }
 

@@ -14,7 +14,7 @@ Server pada repository ini secara default berjalan di port `3001` (`cmd/myapp/ma
 }
 ```
 
-Status perangkat disimpan pada tabel `dude_device_statuses`; data dengan IP yang sama akan memperbarui nama, status, dan waktu terakhir terlihat. Tabel dibuat oleh proses `AutoMigrate` aplikasi. WebSocket mengirim JSON payload di atas kepada seluruh client yang terhubung.
+Status perangkat disimpan pada tabel `dude_device_statuses`; data dengan IP yang sama akan memperbarui nama, status, dan waktu terakhir terlihat. Waktu down dicatat saat status down/offline teramati oleh ping, webhook, atau flag DOWN saat impor CSV. Untuk data lama yang belum memiliki waktu down, aplikasi mengisi `last_down_at` dari `last_seen`; waktu kejadian sebelum tercatat tidak dapat dipulihkan. Tabel dibuat oleh proses `AutoMigrate` aplikasi. WebSocket mengirim JSON payload di atas kepada seluruh client yang terhubung.
 
 ## Import network map and automatic sync
 
@@ -50,12 +50,12 @@ Router tanpa koordinat tetap terlihat di daftar sidebar, tetapi baru menjadi pin
 
 ### RouterOS Execute on Server
 
-Tambahkan script berikut pada notification The Dude dengan tipe **Execute on Server**. Sesuaikan URL, lalu sesuaikan placeholder `%name`, `%address`, dan `%status` bila versi The Dude Anda menggunakan variabel notifikasi yang berbeda.
+Tambahkan script berikut pada notification The Dude dengan tipe **Execute on Server**. Sesuaikan URL dan placeholder `%name`, `%address`, serta `%flag` dengan variabel yang tersedia pada versi The Dude Anda. Nilai `%flag` dikirim sebagai properti JSON `status` yang dibaca backend.
 
 ```routeros
 :local deviceName "%name"
 :local ipAddress "%address"
-:local deviceStatus "%status"
+:local deviceStatus "%flag"
 :local payload ("{\"device_name\":\"" . $deviceName . "\",\"ip_address\":\"" . $ipAddress . "\",\"status\":\"" . $deviceStatus . "\"}")
 
 /tool fetch url="http://IP-ATAU-DOMAIN-BACKEND:3001/api/webhook/dude-status" http-method=post http-header-field="Content-Type: application/json" http-data=$payload keep-result=no

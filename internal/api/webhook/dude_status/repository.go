@@ -1,6 +1,7 @@
 package dude_status
 
 import (
+	"strings"
 	"time"
 
 	"skripsi-be/internal/models/entities"
@@ -39,16 +40,49 @@ func (r *gormStatusRepository) Upsert(status DeviceStatus) error {
 		Status:    status.Status,
 		LastSeen:  now,
 	}
+	if isDownStatus(status.Status) {
+		device.LastDownAt = &now
+	}
+
+	updates := clause.AssignmentColumns([]string{"name", "last_seen"})
+	if isDownStatus(status.Status) {
+		updates = append(updates, clause.Assignment{
+			Column: clause.Column{Name: "last_down_at"},
+			Value: gorm.Expr(
+				"CASE WHEN LOWER(status) IN (?, ?) THEN COALESCE(last_down_at, ?) ELSE ? END",
+				"down", "offline", now, now,
+			),
+		})
+	} else if isUpStatus(status.Status) {
+		updates = append(updates, clause.Assignment{
+			Column: clause.Column{Name: "last_down_at"},
+			Value:  nil,
+		})
+	}
+	updates = append(updates, clause.AssignmentColumns([]string{"status", "updated_at"})...)
 
 	return r.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "ip_address"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"name",
-			"status",
-			"last_seen",
-			"updated_at",
-		}),
+		Columns:   []clause.Column{{Name: "ip_address"}},
+		DoUpdates: updates,
 	}).Create(&device).Error
+}
+
+func isDownStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "down", "offline":
+		return true
+	default:
+		return false
+	}
+}
+
+func isUpStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "up", "online", "ok":
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *gormStatusRepository) List() ([]entities.DudeDeviceStatus, error) {
@@ -76,15 +110,26 @@ func (r *gormStatusRepository) ImportDevices(devices []entities.DudeDeviceStatus
 		}
 
 		var existing []entities.DudeDeviceStatus
-		if err := tx.Select("ip_address").Where("ip_address IN ?", addresses).Find(&existing).Error; err != nil {
+		if err := tx.Select("ip_address", "status", "last_down_at").Where("ip_address IN ?", addresses).Find(&existing).Error; err != nil {
 			return err
 		}
 		result.Updated = len(existing)
 		result.Created = len(devices) - result.Updated
 
 		now := time.Now()
+		existingByAddress := make(map[string]entities.DudeDeviceStatus, len(existing))
+		for _, device := range existing {
+			existingByAddress[device.IPAddress] = device
+		}
 		for i := range devices {
 			devices[i].LastSeen = now
+			previous := existingByAddress[devices[i].IPAddress]
+			devices[i].LastDownAt = lastDownAtForImport(
+				devices[i].Status,
+				previous.Status,
+				previous.LastDownAt,
+				now,
+			)
 		}
 		return tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "ip_address"}},
@@ -93,11 +138,25 @@ func (r *gormStatusRepository) ImportDevices(devices []entities.DudeDeviceStatus
 				"map_name",
 				"status",
 				"last_seen",
+				"last_down_at",
 				"updated_at",
 			}),
 		}).Create(&devices).Error
 	})
 	return result, err
+}
+
+func lastDownAtForImport(status, previousStatus string, previousLastDownAt *time.Time, now time.Time) *time.Time {
+	if isUpStatus(status) {
+		return nil
+	}
+	if !isDownStatus(status) {
+		return previousLastDownAt
+	}
+	if isDownStatus(previousStatus) && previousLastDownAt != nil {
+		return previousLastDownAt
+	}
+	return &now
 }
 
 func (r *gormStatusRepository) UpdateDetails(id string, details UpdateDeviceDetailsRequest) (entities.DudeDeviceStatus, error) {
