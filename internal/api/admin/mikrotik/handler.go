@@ -12,22 +12,16 @@ import (
 	"skripsi-be/internal/services"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
 type MikroTikHandler struct {
 	mikroTikService *services.MikroTikService
-	db              *gorm.DB
 }
 
-func NewMikroTikHandler(mikroTikService *services.MikroTikService, databases ...*gorm.DB) *MikroTikHandler {
-	handler := &MikroTikHandler{
+func NewMikroTikHandler(mikroTikService *services.MikroTikService) *MikroTikHandler {
+	return &MikroTikHandler{
 		mikroTikService: mikroTikService,
 	}
-	if len(databases) > 0 {
-		handler.db = databases[0]
-	}
-	return handler
 }
 
 // Connect to MikroTik device
@@ -61,11 +55,6 @@ func (h *MikroTikHandler) Connect(c *fiber.Ctx) error {
 	// Attempt to connect
 	if err := h.mikroTikService.Connect(); err != nil {
 		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, "Failed to connect to MikroTik: "+err.Error(), nil)
-	}
-
-	if err := services.SaveRouterCredential(h.db, req.Host, req.Host, req.Port, req.Username, req.Password, false); err != nil {
-		_ = h.mikroTikService.Disconnect()
-		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, "Connected to MikroTik but failed to store encrypted credentials", nil)
 	}
 
 	// expose shared instance for background jobs
@@ -418,24 +407,4 @@ func findRouterMacInDHCP(output string, stickerMac string, shiftedMac string) (s
 
 	// If loop finishes and nothing returned, the device is not online
 	return "", "", fmt.Errorf("router not found (checked %s and %s)", stickerMac, shiftedMac)
-}
-
-// GetActivePPPoESessions retrieves active PPPoE subscriber sessions matched with CRM customer records
-func (h *MikroTikHandler) GetActivePPPoESessions(c *fiber.Ctx) error {
-	if h.mikroTikService == nil {
-		h.mikroTikService = services.GetSharedMikroTikService()
-	}
-	if h.mikroTikService == nil {
-		return helpers.ResponseUtils(c, http.StatusServiceUnavailable, false, "MikroTik service is not initialized", nil)
-	}
-
-	sessions, err := h.mikroTikService.GetActivePPPoESessions(h.db)
-	if err != nil {
-		return helpers.ResponseUtils(c, http.StatusInternalServerError, false, err.Error(), nil)
-	}
-
-	return helpers.ResponseUtils(c, http.StatusOK, true, "Active PPPoE sessions retrieved successfully", fiber.Map{
-		"total":    len(sessions),
-		"sessions": sessions,
-	})
 }

@@ -47,7 +47,6 @@ func (r AdminInstallationReportRepositoryStruct) FindCompleteInstallationReportR
 		Preload("AssetTransactions").
 		Preload("NetworkDevices").
 		Preload("NetworkDevices.Assets").
-		Preload("NetworkDevices.AssetItem").
 		Preload("NetworkDevices.Product").
 		Preload("CustomerServices").
 		Preload("InstallationTechnicians").
@@ -84,7 +83,6 @@ func (r AdminInstallationReportRepositoryStruct) FindCompleteInstallationReportW
 		Preload("AssetTransactions").
 		Preload("NetworkDevices").
 		Preload("NetworkDevices.Assets").
-		Preload("NetworkDevices.AssetItem").
 		Preload("NetworkDevices.Product").
 		Preload("CustomerServices").
 		Preload("InstallationTechnicians").
@@ -161,22 +159,11 @@ func (r AdminInstallationReportRepositoryStruct) FindCompleteInstallationReportW
 		}
 		response.KepemilikanPerangkat = networkDevice.KepemilikanPerangkat
 
-		// Get router information from assets relationship (catalog: brand/type/model)
+		// Get router information from assets relationship
 		if networkDevice.Assets != nil {
 			response.RouterBrand = networkDevice.Assets.Brand
 			response.RouterType = networkDevice.Assets.Type
 			response.RouterModel = networkDevice.Assets.Model
-		}
-
-		// Serial number must come from the physical unit (AssetItem), NOT from the
-		// asset catalog record. Assets.serial_number belongs to the catalog entry and
-		// is therefore identical for every unit of the same model.
-		// Priority: AssetItem.SerialNumber -> NetworkDevice.OntSerialNumber -> Assets.SerialNumber (legacy fallback)
-		if networkDevice.AssetItem != nil && networkDevice.AssetItem.SerialNumber != nil && *networkDevice.AssetItem.SerialNumber != "" {
-			response.RouterSerial = *networkDevice.AssetItem.SerialNumber
-		} else if networkDevice.OntSerialNumber != nil && *networkDevice.OntSerialNumber != "" {
-			response.RouterSerial = *networkDevice.OntSerialNumber
-		} else if networkDevice.Assets != nil {
 			response.RouterSerial = networkDevice.Assets.SerialNumber
 		}
 
@@ -710,20 +697,6 @@ func (r AdminInstallationReportRepositoryStruct) CreateCompleteInstallationRepor
 		// Debug: Log the product ID being set
 		log.Printf("🔍 DEBUG: Setting ProductID for network device: %s", device.ProductID)
 
-		var ontSerialNumber *string
-		if device.AssetItemID != "" {
-			var assetItem entities.AssetItem
-			if err := tx.Where("id = ?", device.AssetItemID).First(&assetItem).Error; err == nil {
-				ontSerialNumber = assetItem.SerialNumber
-			}
-		}
-		if ontSerialNumber == nil && device.OntSerialNumber != "" {
-			ontSerialNumber = func() *string { value := device.OntSerialNumber; return &value }()
-		}
-		if ontSerialNumber != nil {
-			_ = tx.Model(&entities.Customer{}).Where("id = ?", request.CustomerId).Update("ont_serial_number", *ontSerialNumber).Error
-		}
-
 		networkDevice := entities.NetworkDevice{
 			ID:         "",
 			CustomerID: request.CustomerId,
@@ -743,7 +716,6 @@ func (r AdminInstallationReportRepositoryStruct) CreateCompleteInstallationRepor
 			RemotePort:             &device.RemotePort,
 			EthPort:                &device.EthPort,
 			MacAddress:             &device.MacAddress,
-			OntSerialNumber:        ontSerialNumber,
 			IPStatic:               &device.IPStatic,
 			KepemilikanPerangkat:   device.KepemilikanPerangkat,
 			ProductID:              &device.ProductID,
@@ -983,20 +955,6 @@ func (r AdminInstallationReportRepositoryStruct) UpdateCompleteInstallationRepor
 	newNetworkDeviceIDs := make([]string, 0, len(request.NetworkDevices))
 
 	for _, device := range request.NetworkDevices {
-		var ontSerialNumber *string
-		if device.AssetItemID != "" {
-			var assetItem entities.AssetItem
-			if err := tx.Where("id = ?", device.AssetItemID).First(&assetItem).Error; err == nil {
-				ontSerialNumber = assetItem.SerialNumber
-			}
-		}
-		if ontSerialNumber == nil && device.OntSerialNumber != "" {
-			ontSerialNumber = func() *string { value := device.OntSerialNumber; return &value }()
-		}
-		if ontSerialNumber != nil {
-			_ = tx.Model(&entities.Customer{}).Where("id = ?", request.CustomerId).Update("ont_serial_number", *ontSerialNumber).Error
-		}
-
 		deviceEntity := entities.NetworkDevice{
 			ID:                     "",
 			CustomerID:             request.CustomerId,
@@ -1007,7 +965,6 @@ func (r AdminInstallationReportRepositoryStruct) UpdateCompleteInstallationRepor
 			RemotePort:             &device.RemotePort,
 			EthPort:                &device.EthPort,
 			MacAddress:             &device.MacAddress,
-			OntSerialNumber:        ontSerialNumber,
 			IPStatic:               &device.IPStatic,
 			KepemilikanPerangkat:   device.KepemilikanPerangkat,
 			ProductID:              &device.ProductID,
@@ -1280,10 +1237,6 @@ func (r *AdminInstallationReportRepositoryStruct) roleIDByName(tx *gorm.DB, name
 	if err := tx.Table("roles").Select("id").Where("name = ?", name).Scan(&row).Error; err != nil {
 		log.Printf("roleIDByName: Error querying role '%s': %v", name, err)
 		return "", err
-	}
-
-	// Fallback: try space/underscore variant when no row matched
-	if row.ID == "" {
 		if alt := strings.Replace(name, " ", "_", -1); alt != name {
 			log.Printf("roleIDByName: Not found, trying alternative name: '%s'", alt)
 			if err := tx.Table("roles").Select("id").Where("name = ?", alt).Scan(&row).Error; err != nil {
@@ -1291,14 +1244,10 @@ func (r *AdminInstallationReportRepositoryStruct) roleIDByName(tx *gorm.DB, name
 				return "", err
 			}
 		}
-	}
-
-	if row.ID == "" {
 		err := fmt.Errorf("role '%s' not found (after fallback)", name)
 		log.Printf("roleIDByName: %v", err)
 		return "", err
 	}
-
 	log.Printf("roleIDByName: Found role ID '%s' for name '%s'", row.ID, name)
 	return row.ID, nil
 }

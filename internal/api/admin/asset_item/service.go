@@ -8,11 +8,6 @@ type AssetItemServiceInterface interface {
 	GetByIdAssetItemService(request IdAssetItemRequest) (entities.AssetItem, error)
 	UpdateAssetItemService(request UpdateAssetItemRequest) (entities.AssetItem, error)
 	DeleteAssetItemService(request IdAssetItemRequest) (entities.AssetItem, error)
-
-	// Router / customer integration
-	GetAssetItemUsageService(assetItemID string) (AssetItemUsageResponse, error)
-	GetAssetItemUsagesBySerialService(serialNumber string) ([]AssetItemUsageResponse, error)
-	GetCustomerRoutersService(customerID string) (CustomerRouterAssignmentResponse, error)
 }
 
 type AssetItemServiceStruct struct {
@@ -61,24 +56,5 @@ func (s AssetItemServiceStruct) DeleteAssetItemService(request IdAssetItemReques
 		return item, err
 	}
 	return item, err
-}
-
-// =============================================================================
-// Router / customer integration
-// =============================================================================
-
-// GetAssetItemUsageService returns the customers currently using a specific asset unit
-func (s AssetItemServiceStruct) GetAssetItemUsageService(assetItemID string) (AssetItemUsageResponse, error) {
-	return s.repository.FindAssetItemUsageRepository(assetItemID)
-}
-
-// GetAssetItemUsagesBySerialService returns usage info for every unit matching a serial number
-func (s AssetItemServiceStruct) GetAssetItemUsagesBySerialService(serialNumber string) ([]AssetItemUsageResponse, error) {
-	return s.repository.FindAssetItemUsagesBySerialRepository(serialNumber)
-}
-
-// GetCustomerRoutersService returns all router/ONT units assigned to a customer
-func (s AssetItemServiceStruct) GetCustomerRoutersService(customerID string) (CustomerRouterAssignmentResponse, error) {
-	return s.repository.FindCustomerRoutersRepository(customerID)
 }
 

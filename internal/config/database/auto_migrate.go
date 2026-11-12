@@ -37,7 +37,6 @@ func AutoMigrate() {
 		&entities.InvoiceItems{},
 		&entities.InvoicePendingReason{},
 		&entities.InvoicePayment{},
-		&entities.PaymentAttempt{},
 		&entities.FieldPaymentClosing{},
 		&entities.CustomerIsolationLog{},
 
@@ -90,17 +89,15 @@ func AutoMigrate() {
 		&entities.B2BProjectWorkOrder{},
 		&entities.B2BProjectBast{},
 
-		// Netwatch & Monitoring Logs
+		// Netwatch
 		&entities.NetwatchDevice{},
 		&entities.NetwatchEvent{},
 		&entities.NetwatchConfig{},
 		&entities.DudeDeviceStatus{},
 		&entities.TicketLog{},
-		&entities.DeviceStatusLog{},
 
 		// Router
 		&entities.RouterJob{},
-		&entities.NetworkRouterCredential{},
 
 		// Report
 		&entities.InstallationReportTechnician{},
@@ -116,16 +113,6 @@ func AutoMigrate() {
 		&entities.Transfers{},
 		&entities.ReportAssets{},
 		&entities.ReportCash{},
-
-		// Network topology (customer mapping & monitoring)
-		&entities.NetworkNode{},
-		&entities.OdpPort{},
-		&entities.NetworkLink{},
-		&entities.CustomerNetworkLink{},
-		&entities.NetworkCableRoute{},
-		&entities.PhysicalOpticalReading{},
-		&entities.LinkFlappingStatus{},
-		&entities.MassIncident{},
 	}
 
 	for _, model := range models {
@@ -144,35 +131,16 @@ func AutoMigrate() {
 	if err := db.AutoMigrate(&entities.DudeDeviceStatus{}); err != nil {
 		log.Printf("Failed to migrate The Dude device status table: %v", err)
 	}
-	if err := db.AutoMigrate(
-		&entities.NetworkNode{},
-		&entities.OdpPort{},
-		&entities.NetworkLink{},
-		&entities.CustomerNetworkLink{},
-		&entities.MassIncident{},
-		&entities.TroubleTicket{},
-	); err != nil {
-		log.Printf("Failed to migrate network topology tables: %v", err)
-	}
 
 	// Additive column migrations for existing tables.
+	// The loop above only creates missing tables, so new columns on pre-existing
+	// tables must be added here (Migrator().AddColumn is a no-op if it exists).
 	if db.Migrator().HasTable(&entities.Item{}) {
 		if !db.Migrator().HasColumn(&entities.Item{}, "MinimumStock") {
 			if err := db.Migrator().AddColumn(&entities.Item{}, "MinimumStock"); err != nil {
 				log.Printf("Failed to add minimum_stock column to items table: %v", err)
 			}
 		}
-	}
-
-	// Migrate ONT monitoring tables and columns
-	if err := db.AutoMigrate(&entities.OntStatus{}, &entities.OntStatusHistory{}); err != nil {
-		log.Printf("Failed to migrate ONT status tables: %v", err)
-	}
-	if !db.Migrator().HasColumn(&entities.Customer{}, "ont_serial_number") {
-		_ = db.Migrator().AddColumn(&entities.Customer{}, "ont_serial_number")
-	}
-	if !db.Migrator().HasColumn(&entities.NetworkDevice{}, "ont_serial_number") {
-		_ = db.Migrator().AddColumn(&entities.NetworkDevice{}, "ont_serial_number")
 	}
 
 	log.Println("Schema verification complete")

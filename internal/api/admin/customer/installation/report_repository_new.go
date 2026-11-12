@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type ReportInstallationRepositoryInterface interface {
@@ -114,13 +113,6 @@ func getStringValue(s *string) string {
 
 // CreateReportInstallationRepository - Create installation report with all related data
 func (r *ReportInstallationRepository) CreateReportInstallationRepository(request CreateReportInstallationRequest, createdByUserID string) (entities.CustomerInstallation, error) {
-	if request.RxPower == nil {
-		return entities.CustomerInstallation{}, fmt.Errorf("Hasil ukur redaman OPM wajib diisi")
-	}
-	if *request.RxPower > 20 || *request.RxPower < -60 {
-		return entities.CustomerInstallation{}, fmt.Errorf("Nilai redaman OPM tidak valid (harus dalam rentang -60 s.d. 20 dBm)")
-	}
-
 	tx := r.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -278,79 +270,6 @@ func (r *ReportInstallationRepository) CreateReportInstallationRepository(reques
 
 	log.Printf("Installation record created successfully with ID: %s", installation.ID)
 
-	opticalTechnicianID := request.TechnicianID
-	for _, technician := range request.Technicians {
-		if technician.IsPrimary || opticalTechnicianID == "" {
-			opticalTechnicianID = technician.TechnicianID
-		}
-		if technician.IsPrimary {
-			break
-		}
-	}
-	if opticalTechnicianID == "" {
-		opticalTechnicianID = createdByUserID
-	}
-
-	technicianName := ""
-	if opticalTechnicianID != "" {
-		var user entities.User
-		if err := tx.Select("id", "name").Where("id = ?", opticalTechnicianID).First(&user).Error; err == nil {
-			technicianName = user.Name
-		}
-	}
-	opticalReading := entities.PhysicalOpticalReading{
-		CustomerID:     request.CustomerID,
-		SourceEvent:    "psb_installation",
-		TechnicianID:   opticalTechnicianID,
-		TechnicianName: technicianName,
-		RxPower:        *request.RxPower,
-		Notes:          request.InstallationNotes,
-	}
-	if err := tx.Create(&opticalReading).Error; err != nil {
-		tx.Rollback()
-		return installation, err
-	}
-
-	// Reserve the selected physical ODP port atomically with the installation transaction.
-	if request.OdpID != "" && request.OdpPortNumber > 0 {
-		var odpPort entities.OdpPort
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("odp_node_id = ? AND port_number = ?", request.OdpID, request.OdpPortNumber).
-			First(&odpPort).Error
-		if err != nil {
-			tx.Rollback()
-			return installation, fmt.Errorf("Port ODP ini sudah penuh")
-		}
-		if odpPort.Status != entities.OdpPortStatusAvailable {
-			tx.Rollback()
-			return installation, fmt.Errorf("Port ODP ini sudah penuh")
-		}
-
-		customerID := request.CustomerID
-		if err := tx.Model(&odpPort).Updates(map[string]interface{}{
-			"status":      entities.OdpPortStatusOccupied,
-			"customer_id": customerID,
-			"updated_at":  time.Now(),
-		}).Error; err != nil {
-			tx.Rollback()
-			return installation, err
-		}
-
-		splitterPort := fmt.Sprintf("%d", request.OdpPortNumber)
-		customerNetworkLink := entities.CustomerNetworkLink{
-			ID:         "",
-			CustomerID: request.CustomerID,
-			ODPNodeID:  request.OdpID,
-			SplitterID: &splitterPort,
-		}
-		if err := tx.Where("customer_id = ?", request.CustomerID).
-			Assign(customerNetworkLink).
-			FirstOrCreate(&customerNetworkLink).Error; err != nil {
-			tx.Rollback()
-			return installation, err
-		}
-	}
-
 	// Log what was actually saved to database
 	log.Printf("=== DATABASE SAVE DEBUG ===")
 	if installation.DocumentPhoto != nil {
@@ -394,22 +313,6 @@ func (r *ReportInstallationRepository) CreateReportInstallationRepository(reques
 			productID = &request.ProductID
 		}
 
-		var ontSerialNumber *string
-		if request.AssetItemID != "" {
-			var assetItem entities.AssetItem
-			if err := tx.Where("id = ?", request.AssetItemID).First(&assetItem).Error; err == nil && assetItem.SerialNumber != nil && *assetItem.SerialNumber != "" {
-				ontSerialNumber = assetItem.SerialNumber
-			}
-		}
-		if ontSerialNumber == nil && request.OntSerialNumber != "" {
-			ontSerialNumber = stringToPtr(request.OntSerialNumber)
-		}
-		if ontSerialNumber != nil {
-			if err := tx.Model(&entities.Customer{}).Where("id = ?", request.CustomerID).Update("ont_serial_number", *ontSerialNumber).Error; err != nil {
-				log.Printf("Failed to sync ONT serial number to customer: %v", err)
-			}
-		}
-
 		networkDevice := entities.NetworkDevice{
 			ID:         "",
 			CustomerID: request.CustomerID,
@@ -424,7 +327,6 @@ func (r *ReportInstallationRepository) CreateReportInstallationRepository(reques
 			RemotePort:             stringToPtr(request.RemotePort),
 			EthPort:                stringToPtr(request.EthPort),
 			MacAddress:             stringToPtr(request.MacAddress),
-			OntSerialNumber:        ontSerialNumber,
 			IPStatic:               stringToPtr(request.IPStatic),
 			KepemilikanPerangkat:   request.KepemilikanPerangkat,
 			ProductID:              productID,

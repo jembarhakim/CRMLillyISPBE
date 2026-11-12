@@ -30,91 +30,6 @@ func NewAdminCustomerRepository(db *gorm.DB) AdminCustomerRepositoryStruct {
 	return AdminCustomerRepositoryStruct{db}
 }
 
-// buildRouterSummary converts a network device (with preloaded AssetItem + Assets)
-// into a compact router summary. Returns nil when the device has no asset info at all.
-func buildRouterSummary(device entities.NetworkDevice) *CustomerRouterSummary {
-	summary := &CustomerRouterSummary{
-		NetworkDeviceID: device.ID,
-		AssetItemID:     device.AssetItemID,
-		Kepemilikan:     device.KepemilikanPerangkat,
-	}
-
-	// Catalog info (brand / type / model) lives on the Assets relation
-	if device.Assets != nil {
-		summary.Brand = device.Assets.Brand
-		summary.Type = device.Assets.Type
-		summary.Model = device.Assets.Model
-	}
-
-	// Physical unit info lives on AssetItem
-	if device.AssetItem != nil {
-		summary.AssetItemStatus = device.AssetItem.Status
-		summary.MacAddress = device.AssetItem.MacAddress
-		if device.AssetItem.SerialNumber != nil {
-			summary.SerialNumber = *device.AssetItem.SerialNumber
-		}
-		// Fallback for catalog data when the network_device -> assets link is missing
-		if device.AssetItem.Asset != nil {
-			if summary.Brand == "" {
-				summary.Brand = device.AssetItem.Asset.Brand
-			}
-			if summary.Type == "" {
-				summary.Type = device.AssetItem.Asset.Type
-			}
-			if summary.Model == "" {
-				summary.Model = device.AssetItem.Asset.Model
-			}
-		}
-	}
-
-	if device.MacAddress != nil && *device.MacAddress != "" {
-		summary.MacAddress = *device.MacAddress
-	}
-	if device.OntSerialNumber != nil {
-		summary.OntSerialNumber = *device.OntSerialNumber
-	}
-
-	// Serial number fallback chain:
-	// asset_items.serial_number -> network_devices.ont_serial_number -> assets.serial_number (legacy)
-	if summary.SerialNumber == "" {
-		summary.SerialNumber = summary.OntSerialNumber
-	}
-	if summary.SerialNumber == "" && device.Assets != nil {
-		summary.SerialNumber = device.Assets.SerialNumber
-	}
-
-	if device.IPStatic != nil {
-		summary.IPStatic = *device.IPStatic
-	}
-	if device.SwitchID != nil {
-		summary.SwitchID = *device.SwitchID
-	}
-	if device.PortNumber != nil {
-		summary.PortNumber = *device.PortNumber
-	}
-
-	// Skip devices that carry no identifying router information
-	if summary.SerialNumber == "" && summary.MacAddress == "" &&
-		summary.Brand == "" && summary.Model == "" && summary.AssetItemID == nil {
-		return nil
-	}
-
-	return summary
-}
-
-// loadNetworkDevicesWithAsset loads network devices for a customer including the
-// physical asset unit (AssetItem) and the asset catalog (Assets).
-func (r AdminCustomerRepositoryStruct) loadNetworkDevicesWithAsset(customerID string) []entities.NetworkDevice {
-	networkDevices := []entities.NetworkDevice{}
-	r.db.Preload("Product").
-		Preload("Assets").
-		Preload("AssetItem").
-		Preload("AssetItem.Asset").
-		Where("customer_id = ?", customerID).
-		Find(&networkDevices)
-	return networkDevices
-}
-
 func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepository() ([]CustomerListResponse, error) {
 	customers := []entities.Customer{}
 	tx := r.db.Preload("Area").Preload("Company").Where("deleted_at IS NULL").Find(&customers)
@@ -126,8 +41,9 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepository() ([]Customer
 	// Build response with network device data
 	var response []CustomerListResponse
 	for _, customer := range customers {
-		// Get network devices for this customer (with Product, Assets catalog and physical AssetItem unit)
-		networkDevices := r.loadNetworkDevicesWithAsset(customer.ID)
+		// Get network devices for this customer (with Product and Assets)
+		networkDevices := []entities.NetworkDevice{}
+		r.db.Preload("Product").Preload("Assets").Where("customer_id = ?", customer.ID).Find(&networkDevices)
 
 		// Note: Product information is now managed through network_devices table
 		// Customer no longer has direct Product relationship
@@ -137,7 +53,6 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepository() ([]Customer
 		var macAddresses []string
 		var productName *string
 		var productPrice *int64
-		var routerSummary *CustomerRouterSummary
 
 		for _, device := range networkDevices {
 			if device.IPStatic != nil && *device.IPStatic != "" {
@@ -150,10 +65,6 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepository() ([]Customer
 			if device.Product != nil && productName == nil {
 				productName = &device.Product.Name
 				productPrice = &device.Product.Price
-			}
-			// Get router summary from the first device that has a linked asset unit
-			if routerSummary == nil {
-				routerSummary = buildRouterSummary(device)
 			}
 		}
 
@@ -172,12 +83,11 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepository() ([]Customer
 		}
 
 		customerResponse := CustomerListResponse{
-			Customer:      customer,
-			IPStatic:      combinedIP,
-			MacAddress:    combinedMAC,
-			ProductName:   productName,
-			ProductPrice:  productPrice,
-			RouterSummary: routerSummary,
+			Customer:     customer,
+			IPStatic:     combinedIP,
+			MacAddress:   combinedMAC,
+			ProductName:  productName,
+			ProductPrice: productPrice,
 		}
 
 		response = append(response, customerResponse)
@@ -319,12 +229,10 @@ func (r AdminCustomerRepositoryStruct) GetCustomerRelatedRecordsRepository(reque
 
 // CustomerDetailResponse represents comprehensive customer information
 type CustomerDetailResponse struct {
-	Customer        entities.Customer                 `json:"customer"`
-	Installations   []entities.CustomerInstallation   `json:"installations"`
-	NetworkDevices  []entities.NetworkDevice          `json:"network_devices"`
-	Invoices        []entities.Invoice                `json:"invoices,omitempty"`
-	OpticalReadings []entities.PhysicalOpticalReading `json:"optical_readings"`
-	LinkStability   *entities.LinkFlappingStatus      `json:"link_stability,omitempty"`
+	Customer       entities.Customer               `json:"customer"`
+	Installations  []entities.CustomerInstallation `json:"installations"`
+	NetworkDevices []entities.NetworkDevice        `json:"network_devices"`
+	Invoices       []entities.Invoice              `json:"invoices,omitempty"`
 }
 
 // CustomerListResponse represents customer with network device data for list view
@@ -334,27 +242,6 @@ type CustomerListResponse struct {
 	MacAddress   *string `json:"mac_address"`
 	ProductName  *string `json:"product_name"`
 	ProductPrice *int64  `json:"product_price"`
-
-	// Router (physical asset unit) summary for the customer.
-	// Sourced from network_devices -> asset_items -> assets.
-	RouterSummary *CustomerRouterSummary `json:"router_summary,omitempty"`
-}
-
-// CustomerRouterSummary describes the router/ONT unit physically installed at a customer
-type CustomerRouterSummary struct {
-	NetworkDeviceID string  `json:"network_device_id"`
-	AssetItemID     *string `json:"asset_item_id,omitempty"`
-	Brand           string  `json:"brand,omitempty"`
-	Type            string  `json:"type,omitempty"`
-	Model           string  `json:"model,omitempty"`
-	SerialNumber    string  `json:"serial_number,omitempty"`
-	MacAddress      string  `json:"mac_address,omitempty"`
-	OntSerialNumber string  `json:"ont_serial_number,omitempty"`
-	AssetItemStatus string  `json:"asset_item_status,omitempty"`
-	Kepemilikan     string  `json:"kepemilikan_perangkat,omitempty"`
-	IPStatic        string  `json:"ip_static,omitempty"`
-	SwitchID        string  `json:"switch_id,omitempty"`
-	PortNumber      string  `json:"port_number,omitempty"`
 }
 
 func (r AdminCustomerRepositoryStruct) FindByIdDetailAdminCustomerRepository(request IdAdminCustomerRequest) (*CustomerDetailResponse, error) {
@@ -380,14 +267,9 @@ func (r AdminCustomerRepositoryStruct) FindByIdDetailAdminCustomerRepository(req
 	installations := []entities.CustomerInstallation{}
 	r.db.Preload("Technician").Preload("Images").Where("customer_id = ?", request.Id).Find(&installations)
 
-	// Get network devices for this customer (with Product, Assets catalog and physical AssetItem unit)
+	// Get network devices for this customer (with Product and Assets)
 	networkDevices := []entities.NetworkDevice{}
-	r.db.Preload("Product").
-		Preload("Assets").
-		Preload("AssetItem").
-		Preload("AssetItem.Asset").
-		Where("customer_id = ?", request.Id).
-		Find(&networkDevices)
+	r.db.Preload("Product").Preload("Assets").Where("customer_id = ?", request.Id).Find(&networkDevices)
 
 	// Get real-time Netwatch status for each network device from MikroTik
 	for i := range networkDevices {
@@ -405,22 +287,11 @@ func (r AdminCustomerRepositoryStruct) FindByIdDetailAdminCustomerRepository(req
 	invoices := []entities.Invoice{}
 	r.db.Where("customer_id = ?", request.Id).Order("createdAt DESC").Limit(10).Find(&invoices)
 
-	opticalReadings := []entities.PhysicalOpticalReading{}
-	r.db.Where("customer_id = ?", request.Id).Order("created_at DESC").Limit(50).Find(&opticalReadings)
-
-	var linkStability *entities.LinkFlappingStatus
-	var stability entities.LinkFlappingStatus
-	if err := r.db.Where("customer_id = ?", request.Id).First(&stability).Error; err == nil {
-		linkStability = &stability
-	}
-
 	detail := &CustomerDetailResponse{
-		Customer:        customer,
-		Installations:   installations,
-		NetworkDevices:  networkDevices,
-		Invoices:        invoices,
-		OpticalReadings: opticalReadings,
-		LinkStability:   linkStability,
+		Customer:       customer,
+		Installations:  installations,
+		NetworkDevices: networkDevices,
+		Invoices:       invoices,
 	}
 
 	return detail, nil
@@ -477,15 +348,15 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepositoryWithFilter(isI
 	// Build response with network device data (same logic as FindAdminCustomerRepository)
 	var response []CustomerListResponse
 	for _, customer := range customers {
-		// Get network devices for this customer (with Product, Assets catalog and physical AssetItem unit)
-		networkDevices := r.loadNetworkDevicesWithAsset(customer.ID)
+		// Get network devices for this customer (with Product and Assets)
+		networkDevices := []entities.NetworkDevice{}
+		r.db.Preload("Product").Preload("Assets").Where("customer_id = ?", customer.ID).Find(&networkDevices)
 
 		// Aggregate IP and MAC addresses from network devices
 		var ipAddresses []string
 		var macAddresses []string
 		var productName *string
 		var productPrice *int64
-		var routerSummary *CustomerRouterSummary
 
 		for _, device := range networkDevices {
 			if device.IPStatic != nil && *device.IPStatic != "" {
@@ -498,10 +369,6 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepositoryWithFilter(isI
 			if device.Product != nil && productName == nil {
 				productName = &device.Product.Name
 				productPrice = &device.Product.Price
-			}
-			// Get router summary from the first device that has a linked asset unit
-			if routerSummary == nil {
-				routerSummary = buildRouterSummary(device)
 			}
 		}
 
@@ -520,12 +387,11 @@ func (r AdminCustomerRepositoryStruct) FindAdminCustomerRepositoryWithFilter(isI
 		}
 
 		customerResponse := CustomerListResponse{
-			Customer:      customer,
-			IPStatic:      combinedIP,
-			MacAddress:    combinedMAC,
-			ProductName:   productName,
-			ProductPrice:  productPrice,
-			RouterSummary: routerSummary,
+			Customer:     customer,
+			IPStatic:     combinedIP,
+			MacAddress:   combinedMAC,
+			ProductName:  productName,
+			ProductPrice: productPrice,
 		}
 
 		response = append(response, customerResponse)

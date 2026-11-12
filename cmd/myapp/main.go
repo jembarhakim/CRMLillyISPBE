@@ -72,8 +72,6 @@ func main() {
 	// Initialize routes
 	routes.RouteFiber(app)
 	go notifications.StartWorker(database.GetDB())
-	services.StartLinkFlappingWorker(database.GetDB())
-	services.StartMassIncidentWorker(database.GetDB())
 
 	// Auto-connect to the RouterOS API on startup if credentials are available.
 	go func() {
@@ -159,11 +157,7 @@ func main() {
 		services.StartRouterJobWorker(db)
 	}()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3001"
-	}
-	log.Fatal(app.Listen(":" + port))
+	log.Fatal(app.Listen(":3001"))
 }
 
 func parseRouterOSAPIPort(portStr string) (int, error) {

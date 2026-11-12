@@ -232,47 +232,12 @@ func (h *Handler) MarkTechnicianJobCompleted(c *fiber.Ctx) error {
 		return helpers.ResponseUtils(c, 400, false, err.Error(), nil)
 	}
 
-	var payload struct {
-		RxPower *float64 `json:"rx_power"`
-		Notes   string   `json:"notes"`
-	}
-	if err := c.BodyParser(&payload); err != nil && len(c.Body()) > 0 {
-		return helpers.ResponseUtils(c, 400, false, "payload tidak valid", nil)
-	}
-	if payload.RxPower == nil {
-		return helpers.ResponseUtils(c, 400, false, "Hasil ukur redaman OPM wajib diisi", nil)
-	}
-	if *payload.RxPower > 20 || *payload.RxPower < -60 {
-		return helpers.ResponseUtils(c, 400, false, "Nilai redaman OPM tidak valid", nil)
-	}
-
-	ticket, err := h.svc.repo.GetTicketByID(id)
-	if err != nil {
-		return helpers.ResponseUtils(c, 404, false, "tiket tidak ditemukan", nil)
-	}
-	technicianID, _ := c.Locals("user_id").(string)
-	technicianName := ""
-	if technicianID != "" {
-		var user entities.User
-		if err := h.svc.repo.DB.Select("id", "name").Where("id = ?", technicianID).First(&user).Error; err == nil {
-			technicianName = user.Name
-		}
-	}
-	reading := entities.PhysicalOpticalReading{
-		CustomerID: ticket.CustomerID, SourceEvent: "trouble_ticket",
-		TechnicianID: technicianID, TechnicianName: technicianName,
-		RxPower: *payload.RxPower, Notes: payload.Notes,
-	}
-	if err := h.svc.repo.DB.Create(&reading).Error; err != nil {
-		return helpers.ResponseUtils(c, 500, false, err.Error(), nil)
-	}
-
 	if err := h.svc.MarkTechnicianJobCompleted(id); err != nil {
 		return helpers.ResponseUtils(c, 400, false, err.Error(), nil)
 	}
 
 	// Return updated ticket so clients can refresh UI status
-	ticket, _ = h.svc.repo.GetTicketByID(id)
+	ticket, _ := h.svc.repo.GetTicketByID(id)
 	return helpers.ResponseUtils(c, 200, true, "technician job marked as completed", ticket)
 }
 

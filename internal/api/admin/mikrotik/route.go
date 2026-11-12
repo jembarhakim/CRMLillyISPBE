@@ -1,7 +1,6 @@
 package mikrotik
 
 import (
-	"skripsi-be/internal/config/database"
 	"skripsi-be/internal/helpers"
 	"skripsi-be/internal/services"
 
@@ -10,7 +9,7 @@ import (
 
 func MikroTikRoutes(app fiber.Router) {
 	// Create handler instance with proper MikroTik service
-	handler := NewMikroTikHandler(services.GetSharedMikroTikService(), database.GetDB())
+	handler := NewMikroTikHandler(services.GetSharedMikroTikService())
 	routerOSHandler := NewRouterOSHandler()
 
 	// Apply auth middleware
@@ -41,9 +40,6 @@ func MikroTikRoutes(app fiber.Router) {
 
 	// DHCP lease management
 	app.Post("/dhcp-lease", handler.GetDHCPLease)
-
-	// Active PPPoE sessions (CVT subscriber monitoring)
-	app.Get("/pppoe-active", handler.GetActivePPPoESessions)
 
 	// The Dude monitoring through RouterOS API
 	routerOS := app.Group("/routeros")

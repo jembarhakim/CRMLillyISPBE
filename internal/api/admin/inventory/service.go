@@ -87,12 +87,11 @@ func (s *InventoryService) CreatePurchaseService(request CreatePurchaseRequest, 
 			macAddress := s.generateMACAddress()
 
 			assetItem := entities.AssetItem{
-				AssetID:      item.AssetID,
-				MacAddress:   macAddress,
-				SerialNumber: item.SerialNumber,
-				Status:       "in_stock",
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
+				AssetID:    item.AssetID,
+				MacAddress: macAddress,
+				Status:     "in_stock",
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
 			}
 
 			assetItems = append(assetItems, assetItem)

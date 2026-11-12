@@ -1,8 +1,6 @@
 package company
 
 import (
-	"errors"
-
 	"gorm.io/gorm"
 
 	"skripsi-be/internal/models/entities"
@@ -83,13 +81,7 @@ func (r *AdminCompanyRepositoryStruct) UpdateAdminCompanyRepository(request Upda
 func (r *AdminCompanyRepositoryStruct) DeleteCompanyByID(request IdAdminCompanyRequest) (*entities.Company, error) {
 	company := &entities.Company{}
 
-	findTx := r.db.First(&company, "id = ?", request.Id)
-	if errors.Is(findTx.Error, gorm.ErrRecordNotFound) {
-		return nil, gorm.ErrRecordNotFound
-	}
-	if findTx.Error != nil {
-		return nil, findTx.Error
-	}
+	r.db.First(&company, "id = ?", request.Id)
 
 	tx := r.db.Delete(company)
 

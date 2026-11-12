@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
-	"time"
 )
 
 type MidtransCreatePaymentLink struct {
@@ -21,52 +19,72 @@ type MidtransResponsePaymentLink struct {
 }
 
 func CreatePaymentLink(midtrans MidtransCreatePaymentLink) (MidtransResponsePaymentLink, error) {
-	serverKey := strings.TrimSpace(os.Getenv("MIDTRANS_SERVER_KEY"))
-	if serverKey == "" {
-		return MidtransResponsePaymentLink{}, fmt.Errorf("MIDTRANS_SERVER_KEY is not configured")
-	}
 
-	baseURL := "https://app.sandbox.midtrans.com"
-	if strings.EqualFold(os.Getenv("MIDTRANS_IS_PRODUCTION"), "true") {
-		baseURL = "https://app.midtrans.com"
-	}
+	url := "https://app.sandbox.midtrans.com/snap/v1/transactions"
+	method := "POST"
 
-	payload, err := json.Marshal(map[string]any{
-		"transaction_details": map[string]any{
-			"order_id":     midtrans.OrderID,
-			"gross_amount": midtrans.GrossAmount,
+	// payload := strings.NewReader(`{
+	// 	"transaction_details": {
+	// 		"order_id": ` + midtrans.OrderID + `,
+	// 		"gross_amount": ` + fmt.Sprintf("%d", midtrans.GrossAmount) + `
+	// 	},
+	// 	"item_details": [
+	// 		{
+	// 			"id": "'ITEM1'",
+	// 			"price": 10000,
+	// 			"quantity": 1,
+	// 			"name": "Midtrans Bear",
+	// 			"brand"/*  */: "Midtrans",
+	// 			"category": "Toys",
+	// 			"merchant_name": "Midtrans",
+	// 			"url": "http://toko/toko1?item=abc"
+	// 		}
+	// 	],
+	// 	"credit_card": {
+	// 		"secure": true
+	// 	}
+	// }`)
+
+	payload := strings.NewReader(fmt.Sprintf(`{
+		"transaction_details": {
+			"order_id": %q,
+			"gross_amount": %d
 		},
-		"credit_card": map[string]bool{"secure": true},
-	})
+		"credit_card": {
+			"secure": true
+		}
+	}`, midtrans.OrderID, midtrans.GrossAmount))
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+
 	if err != nil {
+		fmt.Println(err)
 		return MidtransResponsePaymentLink{}, err
 	}
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("content-type", "application/json")
+	req.Header.Add("Authorization", "Basic U0ItTWlkLXNlcnZlci13TkZDY1J2bENUdmwwb0RaQkdaNXBHZUM6")
 
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/snap/v1/transactions", strings.NewReader(string(payload)))
+	res, err := client.Do(req)
 	if err != nil {
-		return MidtransResponsePaymentLink{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.SetBasicAuth(serverKey, "")
-
-	res, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
-	if err != nil {
+		fmt.Println(err)
 		return MidtransResponsePaymentLink{}, err
 	}
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
+		fmt.Println(err)
 		return MidtransResponsePaymentLink{}, err
 	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return MidtransResponsePaymentLink{}, fmt.Errorf("Midtrans returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+	fmt.Println(string(body))
+	var response MidtransResponsePaymentLink
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Println(err)
+		return MidtransResponsePaymentLink{}, err
 	}
 
-	var response MidtransResponsePaymentLink
-	if err := json.Unmarshal(body, &response); err != nil {
-		return MidtransResponsePaymentLink{}, err
-	}
 	return response, nil
 }

@@ -15,12 +15,6 @@ func AssetItemRoute(app fiber.Router) {
 
 	app.Use(helpers.VerifyToken)
 	app.Get("/", handler.GetAllAssetItemHandler)
-
-	// Router / customer integration (must be declared before "/:id" to avoid route shadowing)
-	app.Get("/usage/by-serial", handler.GetAssetItemUsageBySerialHandler)
-	app.Get("/customer/:customerId/routers", handler.GetCustomerRoutersHandler)
-	app.Get("/:id/usage", handler.GetAssetItemUsageHandler)
-
 	app.Get("/:id", handler.GetByIdAssetItemHandler)
 	app.Post("/", handler.CreateAssetItemHandler)
 	app.Put("/:id", handler.UpdateAssetItemHandler)
