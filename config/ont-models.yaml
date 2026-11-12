@@ -1,0 +1,188 @@
+# ==============================================================================
+# Konfigurasi Pemetaan Parameter ONT TR-069 / GenieACS
+# CRM Super App - Lilly ISP
+# ==============================================================================
+# File ini memetakan parameter TR-069 vendor-spesifik ke metrik baku aplikasi.
+# Format dan nilai di bawah dapat diubah tanpa harus mengompilasi ulang kode backend.
+
+thresholds:
+  optical_rx:
+    normal_min: -25.0    # dBm (Rx >= -25.0 dan <= -8.0 -> Normal / Hijau)
+    normal_max: -8.0     # dBm (Rx > -8.0 -> Overload optik / Kritis / Merah)
+    warning_min: -27.0   # dBm (Rx >= -27.0 dan < -25.0 -> Warning / Kuning)
+    critical_min: -27.0  # dBm (Rx < -27.0 -> Redaman terlalu tinggi / Kritis / Merah)
+  offline_timeout_multiplier: 2  # Device dianggap offline bila: now - last_inform > (multiplier * inform_interval)
+  default_inform_interval: 300   # Detik (5 menit)
+
+models:
+  # ---------------------------------------------------------------------------
+  # Huawei GPON (TR-098)
+  # Model: HG8245H, HG8546M, EG8145V5, dsb.
+  # ---------------------------------------------------------------------------
+  huawei_tr098:
+    name: "Huawei GPON (TR-098)"
+    vendor: "Huawei"
+    match:
+      manufacturer: "(?i)huawei"
+      product_class: "(?i)(HG|EG|EchoLife)"
+    data_model: "TR-098"
+    verified: true
+    parameters:
+      rx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.RXPower"
+        scale: 1.0
+        unit: "dBm"
+      tx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.TXPower"
+        scale: 1.0
+        unit: "dBm"
+      ssid:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      client_count:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+      software_version:
+        path: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+
+  # ---------------------------------------------------------------------------
+  # ZTE GPON (TR-098)
+  # Model: F609 (v1/v2/v3), F660, F670, dsb.
+  # ---------------------------------------------------------------------------
+  zte_tr098:
+    name: "ZTE GPON (TR-098)"
+    vendor: "ZTE"
+    match:
+      manufacturer: "(?i)zte"
+      product_class: "(?i)F6[0-9]{2}"
+    data_model: "TR-098"
+    verified: true
+    parameters:
+      rx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.RXPower"
+        scale: 1.0
+        unit: "dBm"
+      tx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.TXPower"
+        scale: 1.0
+        unit: "dBm"
+      ssid:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      client_count:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+      software_version:
+        path: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+
+  # ---------------------------------------------------------------------------
+  # Fiberhome / Standard TR-181
+  # Model: AN5506-04-F, HG680P, generic TR-181 GPON ONTs
+  # ---------------------------------------------------------------------------
+  fiberhome_tr181:
+    name: "Fiberhome / Generic TR-181"
+    vendor: "Fiberhome"
+    match:
+      manufacturer: "(?i)fiberhome"
+      product_class: "(?i)AN5506"
+    data_model: "TR-181"
+    verified: true
+    parameters:
+      rx_power:
+        path: "Device.Optical.Interface.1.OpticalSignalLevel"
+        scale: 0.001   # TR-181 standar internasional: nilai dalam 0.001 dBm (-28760 = -28.76 dBm)
+        unit: "dBm"
+      tx_power:
+        path: "Device.Optical.Interface.1.TransmitOpticalLevel"
+        scale: 0.001   # 2140 = 2.14 dBm
+        unit: "dBm"
+      ssid:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      client_count:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+      software_version:
+        path: "Device.DeviceInfo.SoftwareVersion"
+
+  # ---------------------------------------------------------------------------
+  # Fiberhome (TR-098 Candidate)
+  # Belum ada unit fisik untuk verifikasi -> Ditandai TODO
+  # ---------------------------------------------------------------------------
+  fiberhome_tr098:
+    name: "Fiberhome TR-098 (Candidate)"
+    vendor: "Fiberhome"
+    match:
+      manufacturer: "(?i)fiberhome"
+    data_model: "TR-098"
+    verified: false   # TODO: Verifikasi dengan ONT fisik Fiberhome varian TR-098
+    parameters:
+      rx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_FH_PONInterfaceConfig.RXPower"
+        scale: 1.0
+        unit: "dBm"
+      tx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_FH_PONInterfaceConfig.TXPower"
+        scale: 1.0
+        unit: "dBm"
+      ssid:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      client_count:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+
+  # ---------------------------------------------------------------------------
+  # Nokia / Alcatel-Lucent (TR-098 Candidate)
+  # Belum ada unit fisik untuk verifikasi -> Ditandai TODO
+  # ---------------------------------------------------------------------------
+  nokia_alcatel_tr098:
+    name: "Nokia / Alcatel-Lucent GPON (Candidate)"
+    vendor: "Nokia"
+    match:
+      manufacturer: "(?i)(nokia|alcatel)"
+    data_model: "TR-098"
+    verified: false   # TODO: Verifikasi dengan ONT fisik Nokia G-240W
+    parameters:
+      rx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_ALU_COM_GponInterfaceConfig.RXPower"
+        scale: 1.0
+        unit: "dBm"
+      tx_power:
+        path: "InternetGatewayDevice.WANDevice.1.X_ALU_COM_GponInterfaceConfig.TXPower"
+        scale: 1.0
+        unit: "dBm"
+      ssid:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      client_count:
+        path: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+
+  # ---------------------------------------------------------------------------
+  # Generic Fallback (Pencocokan Otomatis)
+  # Digunakan jika vendor/model tidak terdaftar secara eksplisit
+  # ---------------------------------------------------------------------------
+  generic_fallback:
+    name: "Generic Auto-Detect"
+    vendor: "Generic"
+    match:
+      manufacturer: ".*"
+    data_model: "AUTO"
+    verified: true
+    parameters:
+      rx_power_candidates:
+        - path: "InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.RXPower"
+          scale: 1.0
+        - path: "InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.RXPower"
+          scale: 1.0
+        - path: "Device.Optical.Interface.1.OpticalSignalLevel"
+          scale: 0.001
+        - path: "InternetGatewayDevice.WANDevice.1.X_FH_PONInterfaceConfig.RXPower"
+          scale: 1.0
+      tx_power_candidates:
+        - path: "InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.TXPower"
+          scale: 1.0
+        - path: "InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.TXPower"
+          scale: 1.0
+        - path: "Device.Optical.Interface.1.TransmitOpticalLevel"
+          scale: 0.001
+        - path: "InternetGatewayDevice.WANDevice.1.X_FH_PONInterfaceConfig.TXPower"
+          scale: 1.0
+      ssid_candidates:
+        - "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+        - "Device.WiFi.SSID.1.SSID"
+      client_count_candidates:
+        - "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDeviceNumberOfEntries"
+        - "Device.WiFi.AccessPoint.1.AssociatedDeviceNumberOfEntries"
+

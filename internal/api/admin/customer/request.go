@@ -13,6 +13,7 @@ type CreateAdminCustomerRequest struct {
 	CompanyID             *string `json:"company_id"`
 	IsInternet            string  `json:"is_internet"`
 	IsCollaborator        string  `json:"is_collaborator"`
+	OntSerialNumber       *string `json:"ont_serial_number"`
 }
 
 type IdAdminCustomerRequest struct {

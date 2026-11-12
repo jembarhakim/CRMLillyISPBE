@@ -55,7 +55,8 @@ type TroubleTicket struct {
 	NetworkArchitecture *string `gorm:"type:varchar(50)" json:"network_architecture,omitempty"` // FTTH or HTB
 
 	// Accumulation tracking - number of customers affected by the same problem
-	Accumulation int `gorm:"type:int;default:1" json:"accumulation"` // Default 1 for single customer
+	Accumulation   int     `gorm:"type:int;default:1" json:"accumulation"` // Default 1 for single customer
+	MassIncidentID *string `gorm:"type:varchar(36);index:idx_trouble_tickets_mass_incident" json:"mass_incident_id,omitempty"`
 
 	// Netwatch integration fields - DISABLED FOR TESTING
 	// CreatedByNetwatch bool            `gorm:"default:false" json:"created_by_netwatch"`

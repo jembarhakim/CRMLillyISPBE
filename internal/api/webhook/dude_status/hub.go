@@ -20,8 +20,27 @@ type Hub struct {
 	clients map[*wsClient]struct{}
 }
 
+var (
+	sharedHubMu sync.RWMutex
+	sharedHub   *Hub
+)
+
+func GetSharedHub() *Hub {
+	sharedHubMu.RLock()
+	defer sharedHubMu.RUnlock()
+	return sharedHub
+}
+
+func SetSharedHub(h *Hub) {
+	sharedHubMu.Lock()
+	defer sharedHubMu.Unlock()
+	sharedHub = h
+}
+
 func NewHub() *Hub {
-	return &Hub{clients: make(map[*wsClient]struct{})}
+	h := &Hub{clients: make(map[*wsClient]struct{})}
+	SetSharedHub(h)
+	return h
 }
 
 func (h *Hub) register(client *wsClient) {

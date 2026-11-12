@@ -15,6 +15,7 @@ import (
 	"skripsi-be/internal/api/admin/feature"
 	fieldpayment "skripsi-be/internal/api/admin/field_payment"
 	"skripsi-be/internal/api/admin/geocoding"
+	incidentsapi "skripsi-be/internal/api/admin/incidents"
 	"skripsi-be/internal/api/admin/inventory"
 	"skripsi-be/internal/api/admin/invoice"
 	itemscatalog "skripsi-be/internal/api/admin/items_catalog"
@@ -22,7 +23,9 @@ import (
 	"skripsi-be/internal/api/admin/mikrotik"
 	networkdevice "skripsi-be/internal/api/admin/network-device"
 	network_monitoring "skripsi-be/internal/api/admin/network_monitoring"
+	networktopology "skripsi-be/internal/api/admin/network_topology"
 	notificationsapi "skripsi-be/internal/api/admin/notifications"
+	ontapi "skripsi-be/internal/api/admin/ont"
 	"skripsi-be/internal/api/admin/product"
 	"skripsi-be/internal/api/admin/recurring_invoice"
 	"skripsi-be/internal/api/admin/report"
@@ -33,13 +36,15 @@ import (
 	broadcastapi "skripsi-be/internal/api/broadcast"
 	upload_file "skripsi-be/internal/api/common/upload_file"
 	customerdashboard "skripsi-be/internal/api/customer/dashboard"
-	customertickets "skripsi-be/internal/api/customer/tickets"
-	servicerequests "skripsi-be/internal/api/customer/service_requests"
 	"skripsi-be/internal/api/customer/monitoring"
+	servicerequests "skripsi-be/internal/api/customer/service_requests"
+	customertickets "skripsi-be/internal/api/customer/tickets"
 	newsapi "skripsi-be/internal/api/news"
+	paymentsapi "skripsi-be/internal/api/payments"
 	telegramapi "skripsi-be/internal/api/telegram"
 	ticketapi "skripsi-be/internal/api/ticket"
 	dudeStatus "skripsi-be/internal/api/webhook/dude_status"
+	kumahook "skripsi-be/internal/api/webhook/kuma"
 	midtrans "skripsi-be/internal/api/webhook/midtrans"
 	"skripsi-be/internal/api/webhook/moota"
 	waapi "skripsi-be/internal/api/webhook/wa"
@@ -71,6 +76,7 @@ func RouteFiber(app *fiber.App) {
 
 	upload_file.CommonUploadFileRoute(api.Group("/file-upload"))
 	product.PublicProductRoute(api.Group("/product"))
+	paymentsapi.RegisterRoutes(api.Group("/payments"), database.GetDB())
 
 	auth := api.Group("/auth")
 	authapi.AuthRoute(auth)
@@ -105,7 +111,8 @@ func RouteFiber(app *fiber.App) {
 	servicerequests.AdminServiceRequestRoute(admin.Group("/service-requests"))
 	// B2B Incidental Project — Sprint 6 (master, quotation, milestone, margin, WO/BAST)
 	b2bproject.AdminB2BProjectRoute(admin.Group("/b2b-project"))
-
+	networktopology.RegisterRoutes(admin, database.GetDB())
+	incidentsapi.RegisterRoutes(admin, database.GetDB())
 	// Network Monitoring routes
 	networkMonitoringHandler := network_monitoring.NewNetworkMonitoringHandler(
 		services.NewNetworkMonitoringAssistant(database.GetDB(), services.GetSharedMikroTikService()),
@@ -147,9 +154,11 @@ func RouteFiber(app *fiber.App) {
 	moota.WebhookMootaRoute(webhook.Group("/moota"))
 	notificationsapi.RegisterWebhookRoutes(webhook.Group("/wa"), database.GetDB())
 	dudeStatus.RegisterRoutes(webhook.Group("/dude-status"), admin.Group("/dude-devices"), database.GetDB())
+	kumahook.RegisterRoutes(webhook.Group("/kuma"), database.GetDB())
 
 	webhookPlain := app.Group("/webhook")
 	midtrans.WebhookMidtransRoute(webhookPlain.Group("/midtrans"))
+	kumahook.RegisterRoutes(webhookPlain.Group("/kuma"), database.GetDB())
 
 	// WhatsApp routes
 	waapi.WARoutes(app)
@@ -158,5 +167,16 @@ func RouteFiber(app *fiber.App) {
 	log.Println("Registering broadcast routes...")
 	broadcastapi.SetupBroadcastRoutes(app, database.GetDB())
 	log.Println("Broadcast routes registered successfully")
+
+	// Register ONT monitoring routes & background poller
+	log.Println("Registering ONT monitoring routes...")
+	db := database.GetDB()
+	ontPoller := services.InitSharedOntPoller(db)
+	ontPoller.Start()
+	ontRepo := ontapi.NewRepository(db)
+	ontService := ontapi.NewService(ontRepo, ontPoller)
+	ontHandler := ontapi.NewHandler(ontService)
+	ontapi.RegisterOntRoutes(app, ontHandler)
+	log.Println("ONT monitoring routes registered successfully")
 
 }

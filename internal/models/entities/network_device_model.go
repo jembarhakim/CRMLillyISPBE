@@ -28,6 +28,7 @@ type NetworkDevice struct {
 	UpdatedAt              time.Time             `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP(3)"`
 	MacAddress             *string               `json:"mac_address" gorm:"type:varchar(191)"`
 	IPStatic               *string               `json:"ip_static" gorm:"type:varchar(191)"`
+	OntSerialNumber        *string               `json:"ont_serial_number" gorm:"type:varchar(191);index:idx_network_devices_ont_sn"`
 	ProductID              *string               `json:"product_id" gorm:"type:varchar(191)"`
 	Product                *Products             `json:"product,omitempty" gorm:"foreignKey:ProductID;references:ID"`
 }

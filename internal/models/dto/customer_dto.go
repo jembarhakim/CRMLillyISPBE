@@ -19,7 +19,6 @@ type CustomerDTO struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 	InstallationDate      time.Time `json:"installation_date"`
 	SalesRepresentativeID *string   `json:"sales_representative_id"`
-	ProductID             string    `json:"product_id"`
 	IsInternet            string    `json:"is_internet"`
 	IsCollaborator        string    `json:"is_collaborator"`
 }

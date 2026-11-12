@@ -35,45 +35,49 @@ type UpdateAdminCustomerInstallationRequest struct {
 
 // CreateReportInstallationRequest for simpler single-form submission
 type CreateReportInstallationRequest struct {
-	CustomerID                    string                 `form:"customer_id" json:"customer_id" validate:"required"`
-	TechnicianID                  string                 `form:"technician_id" json:"technician_id"` // Legacy
-	Technicians                   []TechnicianAssignment `json:"technicians"`                        // Multiple technicians
-	AssetsID                      string                 `form:"assets_id" json:"assets_id"`
-	Status                        string                 `form:"status" json:"status"`
-	Notes                         string                 `form:"notes" json:"notes"`
-	MaxLimit                      string                 `form:"max_limit" json:"max_limit"`
-	AutoProvision                 bool                   `form:"auto_provision" json:"auto_provision"`
-	DryRun                        bool                   `form:"dry_run" json:"dry_run"`
-	DocumentType                  string                 `form:"document_type" json:"document_type"`
-	DocumentPhoto                 string                 `form:"document_photo" json:"document_photo"` // File path after upload
-	InstallationType              string                 `form:"installation_type" json:"installation_type"`
-	OnAirDate                     string                 `form:"on_air_date" json:"on_air_date"`
-	TrialEndDate                  string                 `form:"trial_end_date" json:"trial_end_date"`
-	ServiceReadyDate              string                 `form:"service_ready_date" json:"service_ready_date"`
-	InstallationCompletedAt       string                 `form:"installation_completed_at" json:"installation_completed_at"`
-	IsTerminal                    string                 `form:"is_terminal" json:"is_terminal"` // 'yes' or 'no'
-	TerminalCustomerInstallationId string                `form:"terminal_customer_installation_id" json:"terminal_customer_installation_id"` // Installation ID of the terminal installation
-	Latitude                      *float64               `form:"latitude" json:"latitude,omitempty"`
-	Longitude                     *float64               `form:"longitude" json:"longitude,omitempty"`
-	SwitchID                      string                 `form:"switch_id" json:"switch_id"`
-	PortNumber                    string                 `form:"port_number" json:"port_number"`
-	RemotePort                    string                 `form:"remote_port" json:"remote_port"`
-	EthPort                       string                 `form:"eth_port" json:"eth_port"`
-	MacAddress                    string                 `form:"mac_address" json:"mac_address"`     // Device MAC
-	AssetItemID                   string                 `form:"asset_item_id" json:"asset_item_id"` // Specific asset item ID
-	IPStatic                      string                 `form:"ip_static" json:"ip_static"`
-	KepemilikanPerangkat          string                 `form:"kepemilikan_perangkat" json:"kepemilikan_perangkat"`
-	ProductID                     string                 `form:"product_id" json:"product_id"`
-	CableType                     string                 `form:"cable_type" json:"cable_type"`
-	CableLength                   float64                `form:"cable_length" json:"cable_length"` // Changed to float64 to match entity
-	EndPortType                   string                 `form:"end_port_type" json:"end_port_type"`
-	UserLogin                     string                 `form:"user_login" json:"user_login"`
-	Password                      string                 `form:"password" json:"password"`
-	UserStatus                    string                 `form:"user_status" json:"user_status"`
-	InstallationNotes             string                 `form:"installation_notes" json:"installation_notes"`
-	CustomerCompanyID             string                 `form:"customer_company_id" json:"customer_company_id"`
-	CustomerSalesRepresentativeID string                 `form:"customer_sales_representative_id" json:"customer_sales_representative_id"`
-	ImageIds                      []string               `json:"image_ids"`
+	CustomerID                     string                 `form:"customer_id" json:"customer_id" validate:"required"`
+	TechnicianID                   string                 `form:"technician_id" json:"technician_id"` // Legacy
+	Technicians                    []TechnicianAssignment `json:"technicians"`                        // Multiple technicians
+	AssetsID                       string                 `form:"assets_id" json:"assets_id"`
+	Status                         string                 `form:"status" json:"status"`
+	Notes                          string                 `form:"notes" json:"notes"`
+	MaxLimit                       string                 `form:"max_limit" json:"max_limit"`
+	AutoProvision                  bool                   `form:"auto_provision" json:"auto_provision"`
+	DryRun                         bool                   `form:"dry_run" json:"dry_run"`
+	DocumentType                   string                 `form:"document_type" json:"document_type"`
+	DocumentPhoto                  string                 `form:"document_photo" json:"document_photo"` // File path after upload
+	InstallationType               string                 `form:"installation_type" json:"installation_type"`
+	OnAirDate                      string                 `form:"on_air_date" json:"on_air_date"`
+	TrialEndDate                   string                 `form:"trial_end_date" json:"trial_end_date"`
+	ServiceReadyDate               string                 `form:"service_ready_date" json:"service_ready_date"`
+	InstallationCompletedAt        string                 `form:"installation_completed_at" json:"installation_completed_at"`
+	RxPower                        *float64               `form:"rx_power" json:"rx_power,omitempty"`
+	IsTerminal                     string                 `form:"is_terminal" json:"is_terminal"`                                             // 'yes' or 'no'
+	TerminalCustomerInstallationId string                 `form:"terminal_customer_installation_id" json:"terminal_customer_installation_id"` // Installation ID of the terminal installation
+	Latitude                       *float64               `form:"latitude" json:"latitude,omitempty"`
+	Longitude                      *float64               `form:"longitude" json:"longitude,omitempty"`
+	SwitchID                       string                 `form:"switch_id" json:"switch_id"`
+	PortNumber                     string                 `form:"port_number" json:"port_number"`
+	OdpID                          string                 `form:"odp_id" json:"odp_id"`
+	OdpPortNumber                  int                    `form:"odp_port_number" json:"odp_port_number"`
+	RemotePort                     string                 `form:"remote_port" json:"remote_port"`
+	EthPort                        string                 `form:"eth_port" json:"eth_port"`
+	MacAddress                     string                 `form:"mac_address" json:"mac_address"`     // Device MAC
+	AssetItemID                    string                 `form:"asset_item_id" json:"asset_item_id"` // Specific asset item ID
+	OntSerialNumber                string                 `form:"ont_serial_number" json:"ont_serial_number"`
+	IPStatic                       string                 `form:"ip_static" json:"ip_static"`
+	KepemilikanPerangkat           string                 `form:"kepemilikan_perangkat" json:"kepemilikan_perangkat"`
+	ProductID                      string                 `form:"product_id" json:"product_id"`
+	CableType                      string                 `form:"cable_type" json:"cable_type"`
+	CableLength                    float64                `form:"cable_length" json:"cable_length"` // Changed to float64 to match entity
+	EndPortType                    string                 `form:"end_port_type" json:"end_port_type"`
+	UserLogin                      string                 `form:"user_login" json:"user_login"`
+	Password                       string                 `form:"password" json:"password"`
+	UserStatus                     string                 `form:"user_status" json:"user_status"`
+	InstallationNotes              string                 `form:"installation_notes" json:"installation_notes"`
+	CustomerCompanyID              string                 `form:"customer_company_id" json:"customer_company_id"`
+	CustomerSalesRepresentativeID  string                 `form:"customer_sales_representative_id" json:"customer_sales_representative_id"`
+	ImageIds                       []string               `json:"image_ids"`
 
 	// Technician Photo Documentation
 	TechnicianPhotos      []string `form:"technician_photos" json:"technician_photos"`

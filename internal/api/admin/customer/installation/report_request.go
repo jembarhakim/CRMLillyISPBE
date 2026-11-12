@@ -99,6 +99,7 @@ type NetworkDeviceRequest struct {
 	RemotePort           string `json:"remote_port"`
 	EthPort              string `json:"eth_port"`
 	MacAddress           string `json:"mac_address"`
+	OntSerialNumber      string `json:"ont_serial_number"`
 	IPStatic             string `json:"ip_static"`
 	KepemilikanPerangkat string `json:"kepemilikan_perangkat" validate:"omitempty,oneof=owned leased customer"`
 	ProductID            string `json:"product_id"`

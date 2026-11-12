@@ -63,6 +63,11 @@ func (c *ReportInstallationController) CreateReportInstallation(ctx *fiber.Ctx) 
 	request.TrialEndDate = ctx.FormValue("trial_end_date")
 	request.ServiceReadyDate = ctx.FormValue("service_ready_date")
 	request.InstallationCompletedAt = ctx.FormValue("installation_completed_at")
+	if rx := ctx.FormValue("rx_power"); rx != "" {
+		if parsed, err := strconv.ParseFloat(rx, 64); err == nil {
+			request.RxPower = &parsed
+		}
+	}
 	request.IsTerminal = ctx.FormValue("is_terminal")
 	request.TerminalCustomerInstallationId = ctx.FormValue("terminal_customer_installation_id")
 	// Parse latitude and longitude from form
@@ -79,10 +84,17 @@ func (c *ReportInstallationController) CreateReportInstallation(ctx *fiber.Ctx) 
 	request.DocumentType = ctx.FormValue("document_type")
 	request.SwitchID = ctx.FormValue("switch_id")
 	request.PortNumber = ctx.FormValue("port_number")
+	request.OdpID = ctx.FormValue("odp_id")
+	if port := ctx.FormValue("odp_port_number"); port != "" {
+		if parsed, err := strconv.Atoi(port); err == nil {
+			request.OdpPortNumber = parsed
+		}
+	}
 	request.RemotePort = ctx.FormValue("remote_port")
 	request.EthPort = ctx.FormValue("eth_port")
 	request.MacAddress = ctx.FormValue("mac_address")
 	request.AssetItemID = ctx.FormValue("asset_item_id")
+	request.OntSerialNumber = ctx.FormValue("ont_serial_number")
 	request.IPStatic = ctx.FormValue("ip_static")
 	request.KepemilikanPerangkat = ctx.FormValue("kepemilikan_perangkat")
 	request.AssetsID = ctx.FormValue("assets_id")
